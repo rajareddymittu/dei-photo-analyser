@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html lang="" xml:lang="" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8"/>
+<meta content="pandoc" name="generator"/>
+<meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"/>
+<meta content="Sashank Palaparthi" name="author"/>
+<meta content="2026-06-01" name="dcterms.date"/>
+<title>Smart Ticketing + Image/Video Analytics — Architecture Diagrams</title>
+<style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+<link href="data:text/css,@import%20url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&amp;family=JetBrains+Mono&amp;display=swap');body{font-family:'Poppins',sans-serif;max-width:1200px;margin:2rem%20auto;padding:0%201rem;line-height:1.55;color:%23222}h1,h2,h3{font-family:'Poppins',sans-serif;font-weight:600}code,pre{font-family:'JetBrains%20Mono',monospace}table{border-collapse:collapse;margin:1rem%200}th,td{border:1px%20solid%20%23ccc;padding:6px%2010px;text-align:left}th{background:%23f3f3f3}pre{background:%23f7f7f7;padding:12px;border-radius:6px;overflow-x:auto}pre.mermaid{background:transparent;text-align:center}.mermaid{text-align:center;margin:2rem%200}" rel="stylesheet"/>
+</head>
+<body>
+<h2 id="component-diagram-smart-ticketing-subsystem">12. Component
+diagram — Smart Ticketing subsystem</h2>
+<pre class="mermaid"><code>flowchart LR
+    classDef ui fill:#fff3cd,stroke:#a07d00,color:#222
+    classDef api fill:#fbe5d6,stroke:#a8600d,color:#222
+    classDef svc fill:#1f4e79,stroke:#0b2c47,color:#fff
+    classDef ext fill:#e6f0ea,stroke:#2c6f4d,color:#222
+    classDef store fill:#dae8fc,stroke:#6c8ebf,color:#222
+    classDef new stroke-dasharray:6 4,stroke-width:2px
+    classDef orange fill:#e8650a,stroke:#a8430a,color:#fff
+
+    subgraph UI["UI tier"]
+        direction TB
+        Web["Storefront&lt;br/&gt;(React + Next.js)"]:::ui
+        Adm["Venue admin console"]:::ui
+        Kiosk["On-site kiosk UI"]:::ui
+    end
+
+    subgraph Edge["Edge tier"]
+        APIM["[S] APIM"]:::api
+    end
+
+    subgraph Core["Core services"]
+        direction TB
+        Inv["Ticket inventory&lt;br/&gt;+ pricing"]:::orange
+        Cart["Cart orchestrator"]:::orange
+        Coupon["Coupon engine&lt;br/&gt;(couponservice)"]:::orange
+        Order["Order intake"]:::orange
+        Ent["Entitlement service"]:::svc
+        FaceBind["Face-binding service&lt;br/&gt;(opt-in)"]:::svc
+        GateMatch["Gate matcher&lt;br/&gt;(today's bound)"]:::svc
+        Fallback["QR / NFC fallback"]:::svc
+        Notif["Notification dispatcher"]:::orange
+        Refund["Refund + dispute"]:::orange
+    end
+
+    subgraph Stores["Stores"]
+        direction TB
+        EntDB[("[S] Entitlement store")]:::store
+        BindDB[("[S] Face-bind index")]:::store
+        AuditDB[("[S] Ticketing audit log")]:::store
+    end
+
+    subgraph Externals["External systems"]
+        direction TB
+        CT["[L] Commercetools&lt;br/&gt;(cart + order)"]:::ext
+        Pay["[L] Payment gateway"]:::ext
+        SMS["[L] SMS / Email / WA"]:::ext
+        GateHw["Turnstile hardware"]:::ext
+    end
+
+    UI --&gt; APIM
+    APIM --&gt; Inv
+    APIM --&gt; Cart
+    APIM --&gt; Order
+    APIM --&gt; Ent
+    APIM --&gt; Refund
+
+    Cart --&gt; Coupon
+    Cart --&gt; CT
+    Coupon --&gt; CT
+    Order --&gt; Pay
+    Order --&gt; CT
+    Order --&gt; Ent
+    Ent --&gt; EntDB
+    Ent --&gt; FaceBind
+    FaceBind --&gt; BindDB
+    GateMatch --&gt; BindDB
+    GateMatch --&gt; Ent
+    GateMatch --&gt; GateHw
+    Fallback --&gt; Ent
+    Fallback --&gt; GateHw
+    Notif --&gt; SMS
+    Order --&gt; Notif
+    Refund --&gt; CT
+    Refund --&gt; Pay
+    Ent --&gt; AuditDB
+    GateMatch --&gt; AuditDB
+
+    class Inv,Ent,FaceBind,GateMatch,Fallback,EntDB,BindDB,AuditDB,Cart,Order,Notif,Refund new</code></pre>
+<h2 id="component-diagram-image-video-analytics-subsystem">13. Component
+diagram — Image / Video Analytics subsystem</h2>
+<pre class="mermaid"><code>flowchart LR
+    classDef src fill:#fff3cd,stroke:#a07d00,color:#222
+    classDef policy fill:#f8cecc,stroke:#b85450,color:#222
+    classDef svc fill:#1f4e79,stroke:#0b2c47,color:#fff
+    classDef ml fill:#d5e8d4,stroke:#456b3b,color:#222
+    classDef store fill:#dae8fc,stroke:#6c8ebf,color:#222
+    classDef out fill:#e6f0ea,stroke:#2c6f4d,color:#222
+    classDef new stroke-dasharray:6 4,stroke-width:2px
+
+    subgraph Sources["Sources"]
+        direction TB
+        Cam["Venue cameras"]:::src
+        Mob["Guest mobile capture"]:::src
+        Kiosk["Kiosk capture"]:::src
+    end
+
+    subgraph Ingest["Ingest + privacy"]
+        direction TB
+        Orch["Capture orchestrator"]:::svc
+        Edge["Edge filter&lt;br/&gt;(quality, blur)"]:::svc
+        FaceDet["Face detection"]:::svc
+        Consent["Consent registry"]:::policy
+        Anon["Anonymization gateway"]:::policy
+    end
+
+    subgraph FeatureExt["Feature extraction"]
+        direction TB
+        FaceEmb["Face embedding"]:::ml
+        ObjDet["Object + scene detector"]:::ml
+        Apparel["Apparel + style classifier"]:::ml
+        Acc["Accessory detector"]:::ml
+        Beh["Behavioral classifier"]:::ml
+    end
+
+    subgraph Stores["Stores"]
+        direction TB
+        Raw[("[S] Raw vault&lt;br/&gt;(consented only)")]:::store
+        Lake[("[S] Anonymized lake")]:::store
+        FaceIdx[("[S] Face vector index")]:::store
+        NonFace[("[S] Non-face insights store")]:::store
+        AuditA[("[S] Consent + redaction audit")]:::store
+    end
+
+    subgraph Serving["Serving + downstream"]
+        direction TB
+        Search["Asset search API"]:::svc
+        MktTag["Marketing tag engine"]:::out
+        BI["BI / dashboards"]:::out
+        Heat["Venue heatmap"]:::out
+        Match["Face matcher API&lt;br/&gt;(consumed by gate)"]:::svc
+    end
+
+    Sources --&gt; Edge --&gt; Orch
+    Orch --&gt; FaceDet --&gt; Consent
+    Consent --&gt; Anon
+    Consent -.-&gt; AuditA
+    Anon -.-&gt; AuditA
+
+    Anon --&gt; Raw
+    Anon --&gt; Lake
+
+    Raw --&gt; FaceEmb --&gt; FaceIdx
+    Lake --&gt; ObjDet
+    ObjDet --&gt; Apparel --&gt; NonFace
+    ObjDet --&gt; Acc --&gt; NonFace
+    ObjDet --&gt; Beh --&gt; NonFace
+
+    FaceIdx --&gt; Match
+    FaceIdx --&gt; Search
+    NonFace --&gt; MktTag
+    NonFace --&gt; BI
+    NonFace --&gt; Heat
+
+    %% Existing per Base Inventory:
+    %%   FaceDet      = B.0c image ingest + face-detect + tagging (mediaconsolidation + AKS modelpool)
+    %%   Raw, Lake    = B.0d raw photo storage + retrieval (Filespin + Blob)
+    %%   FaceIdx      = B.3.1 extends Azure AI Search (reuse — small effort, see commercials)
+    %%   Search       = B.3.1 extends Azure AI Search
+    %% New = everything else (no Base Inventory equivalent)
+    class Orch,Edge,Consent,Anon,FaceEmb,ObjDet,Apparel,Acc,Beh,NonFace,AuditA,MktTag,BI,Heat,Match new</code></pre>
+<h2 id="delivery-plan-three-options-side-by-side">14. Delivery plan —
+three options side-by-side</h2>
+<h3 id="a-option-a-consolidated-12-month-programme">14.A — Option A:
+Consolidated 12-month programme</h3>
+<pre class="mermaid"><code>gantt
+    title Option A — Consolidated 12-month programme
+    dateFormat YYYY-MM-DD
+    axisFormat %b %y
+
+    section Q1 Foundation MVP
+    B.1 Ticketing foundation        :a1, 2026-06-15, 13w
+    B.2 Anonymisation foundation    :a2, 2026-06-15, 13w
+    B.3 Search + analytics foundation :a3, 2026-06-15, 13w
+    C.9 Cross-Promo + C.12 Admin    :a4, after a1, 0w
+
+    section Q2 Smart features + first revenue
+    C.1 Face-as-Ticket              :a5, after a1, 13w
+    C.2/C.3/C.7/C.8/C.10            :a6, after a1, 13w
+    D.1 Venue Analytics SaaS        :a7, after a2, 13w
+
+    section Q3 Scale + non-face start
+    C.4/C.5/C.6/C.11                :a8, after a5, 13w
+    D.2/D.3/D.5 monetisation        :a9, after a7, 13w
+    E.1 Apparel + E.2.1 Sunglasses  :a10, after a9, 13w
+
+    section Q4 Verticals + remaining non-face + hardening
+    C.13 Reseller + D.4/D.6         :a11, after a8, 13w
+    E.2.2/E.2.3/E.2.4/E.2.5         :a12, after a10, 13w
+    E.3 Behavioral + hardening + GA :crit, a13, after a12, 13w
+
+    section Milestone
+    Single GA — all features        :milestone, gA, after a13, 0d</code></pre>
+<h3 id="b-option-b-two-parallel-projects">14.B — Option B: Two parallel
+projects</h3>
+<pre class="mermaid"><code>gantt
+    title Option B — Two parallel projects (Smart Ticketing + Image / Video Analytics)
+    dateFormat YYYY-MM-DD
+    axisFormat %b %y
+
+    section Shared kickoff
+    Kickoff + governance               :done, k1, 2026-06-15, 2w
+    Customer requirements + sign-off   :k2, after k1, 4w
+
+    section Smart Ticketing project
+    Discovery + tech design            :st1, after k2, 4w
+    Inventory + pricing svc            :st2, after st1, 4w
+    Cart + couponservice extension     :st3, after st1, 4w
+    Entitlement service + store        :st4, after st2, 6w
+    Face-binding service (opt-in)      :st5, after st4, 4w
+    Gate matcher + QR/NFC fallback     :st6, after st5, 6w
+    Notification + refund + admin      :st7, after st3, 3w
+    Pilot at 1-2 venues                :st8, after st6, 4w
+    Hardening + security review + GA   :st9, after st8, 6w
+
+    section Image / Video Analytics project
+    Discovery + privacy assessment     :ia1, after k2, 4w
+    Capture orchestrator + edge filter :ia2, after ia1, 4w
+    Face-blur + anonymisation gateway  :ia3, after ia2, 6w
+    Consent registry + audit           :ia4, after ia2, 4w
+    Raw vault + anonymised lake        :ia5, after ia3, 4w
+    Feature store + face embedding     :ia6, after ia5, 4w
+    Non-face CV — 5 classifiers (E)    :ia7, after ia5, 8w
+    D.1-D.6 face-based monetisation    :ia8, after ia7, 8w
+    Insights store + tag engine + BI   :ia9, after ia8, 6w
+    Hardening + privacy review + GA    :ia10, after ia9, 6w
+
+    section Cross-project gates
+    Integration test (gate ↔ matcher)  :crit, g1, after st6, 3w
+    Joint customer UAT                 :crit, g2, after g1, 4w
+    Combined GA readiness review       :milestone, g3, after st9, 0d</code></pre>
+<h3 id="c-option-c-phased-st-first-ia-later">14.C — Option C: Phased —
+ST first, IA later</h3>
+<pre class="mermaid"><code>gantt
+    title Option C — Phased delivery (ST GA month 7, IA GA month 13)
+    dateFormat YYYY-MM-DD
+    axisFormat %b %y
+
+    section Foundations (shared, months 1-3)
+    B.1+B.2+B.3 foundation            :c1, 2026-06-15, 13w
+
+    section Track 1 — Smart Ticketing GA month 7
+    Q1 deliverables (C.9, C.12)       :c2, after c1, 0w
+    C.1 Face-as-Ticket + C.2 Photo Pack :c3, after c1, 13w
+    C.3/C.7/C.8/C.10                  :c4, after c1, 13w
+    Pilot + ST GA cutover             :crit, c5, after c3, 4w
+
+    section Track 2 — Image / Video Analytics
+    Capture + edge + face-blur        :c6, 2026-10-15, 13w
+    Consent + audit + anon lake       :c7, after c6, 9w
+    Feature store + apparel + accessories :c8, after c7, 9w
+    D.1-D.6 face-based monetisation   :c9, after c8, 9w
+    E.3 Behavioral + insights + BI    :c10, after c9, 4w
+    IA hardening + privacy review + GA :crit, c11, after c10, 4w
+
+    section Milestones
+    ST GA                              :milestone, mST, after c5, 0d
+    IA GA                              :milestone, mIA, after c11, 0d</code></pre>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script><script>mermaid.initialize({startOnLoad:false, theme:"default", flowchart:{useMaxWidth:true, htmlLabels:true}, gantt:{useMaxWidth:true}}); document.querySelectorAll("pre.mermaid").forEach((pre, i) => { const code = pre.querySelector("code"); const src = code ? code.textContent : pre.textContent; const div = document.createElement("div"); div.className = "mermaid"; div.id = "mmd-" + i; div.textContent = src; pre.replaceWith(div); }); mermaid.run();</script></body>
+</html>

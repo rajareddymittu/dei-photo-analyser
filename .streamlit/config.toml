@@ -1,0 +1,46 @@
+# Clean Modern Light Theme with Custom Typography
+[theme]
+base = "light"
+primaryColor = "#4F46E5"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F8FAFC"
+codeBackgroundColor = "#F1F5F9"
+textColor = "#0F172A"
+linkColor = "#4F46E5"
+borderColor = "#E2E8F0"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "10px"
+buttonRadius = "8px"
+font = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+codeFontSize = "0.875rem"
+codeTextColor = "#0F172A"
+baseFontSize = 14
+baseFontWeight = 400
+headingFontSizes = ["32px", "26px", "20px", "16px", "14px", "12px"]
+headingFontWeights = [700, 600, 600, 600, 500, 500]
+linkUnderline = false
+chartCategoricalColors = ["#4F46E5", "#06B6D4", "#10B981", "#F59E0B", "#F43F5E", "#8B5CF6", "#64748B"]
+
+# Semantic colors
+grayColor = "#64748B"
+blueColor = "#4F46E5"
+greenColor = "#10B981"
+redColor = "#F43F5E"
+yellowColor = "#F59E0B"
+orangeColor = "#EA580C"
+violetColor = "#8B5CF6"
+
+dataframeBorderColor = "#E2E8F0"
+dataframeHeaderBackgroundColor = "#F8FAFC"
+
+[theme.sidebar]
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#F1F5F9"
+codeBackgroundColor = "#E2E8F0"
+textColor = "#0F172A"
+borderColor = "#E2E8F0"
+primaryColor = "#4F46E5"
+dataframeHeaderBackgroundColor = "#F1F5F9"
+dataframeBorderColor = "#E2E8F0"

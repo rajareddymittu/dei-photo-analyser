@@ -1,0 +1,31 @@
+.streamlit/secrets.toml
+.env
+.venv
+.venv/
+__pycache__/
+.env
+.DS_Store
+models/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+cat >> .gitignore <<'EOF'
+
+# Local AI / IDE files
+.agents/
+.claude/
+*.dmg
+
+# Datasets / generated data
+classification_images/
+datasetdownload/
+classification_results.csv
+
+# Archives
+*.zip
+
+# Temporary files
+:memory:.ses
+EOF

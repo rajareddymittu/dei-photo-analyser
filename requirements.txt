@@ -1,0 +1,11 @@
+streamlit
+torch
+torchvision
+open_clip_torch
+pillow
+pandas
+numpy
+insightface>=0.7.3
+onnxruntime
+huggingface_hub
+groq
