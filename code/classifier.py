@@ -745,10 +745,10 @@ def inject_custom_theme(is_dark: bool = False) -> None:
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-    /* Global Typography & App Theme */
+    /* Global Typography & Ambient Glow Background Mesh */
     html, body, [class*="css"], .stApp {{
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-        background-color: {bg_app} !important;
+        {'background: radial-gradient(circle at 12% 12%, rgba(99, 102, 241, 0.15) 0%, transparent 40%), radial-gradient(circle at 88% 85%, rgba(168, 85, 247, 0.12) 0%, transparent 45%), radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.05) 0%, transparent 60%), #0B0F19 !important;' if is_dark else 'background: radial-gradient(circle at 10% 12%, rgba(99, 102, 241, 0.06) 0%, transparent 45%), radial-gradient(circle at 90% 88%, rgba(139, 92, 246, 0.05) 0%, transparent 45%), #F8FAFC !important;'}
         color: {text_primary} !important;
     }}
 
@@ -858,66 +858,80 @@ def inject_custom_theme(is_dark: bool = False) -> None:
         letter-spacing: 0.06em;
     }}
 
-    /* Metric Cards */
+    /* Luxury Metric Cards */
     div[data-testid="stMetric"] {{
         background: {metric_bg} !important;
         border: 1px solid {metric_border} !important;
-        border-left: 4px solid {metric_accent} !important;
-        border-radius: 14px !important;
-        padding: 14px 20px !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, {'0.2' if is_dark else '0.03'}) !important;
-        backdrop-filter: blur(10px) !important;
+        border-top: 3px solid {metric_accent} !important;
+        border-radius: 16px !important;
+        padding: 16px 22px !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, {'0.25' if is_dark else '0.04'}) !important;
+        backdrop-filter: blur(12px) !important;
         transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease !important;
     }}
     div[data-testid="stMetric"]:hover {{
-        transform: translateY(-3px) !important;
+        transform: translateY(-4px) !important;
         border-color: {metric_hover_border} !important;
         box-shadow: {metric_hover_shadow} !important;
     }}
     div[data-testid="stMetricValue"] {{
         color: {text_primary} !important;
         font-weight: 800 !important;
-        letter-spacing: -0.01em !important;
+        font-size: 1.8rem !important;
+        letter-spacing: -0.02em !important;
     }}
     div[data-testid="stMetricLabel"] {{
         color: {text_secondary} !important;
+        font-weight: 700 !important;
+        font-size: 0.80rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.06em !important;
+    }}
+    div[data-testid="stMetricDelta"] {{
         font-weight: 600 !important;
         font-size: 0.82rem !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.04em !important;
     }}
 
-    /* Tabs Styling */
+    /* Floating Segmented Pill Island Tabs */
     div[data-baseweb="tab-list"],
     div[data-testid="stTabs"] [role="tablist"] {{
-        gap: 8px !important;
-        border-bottom: 2px solid {border_subtle} !important;
-        padding-bottom: 2px !important;
-        margin-bottom: 22px !important;
+        display: inline-flex !important;
+        gap: 6px !important;
+        background: {'rgba(15, 23, 42, 0.85)' if is_dark else '#F1F5F9'} !important;
+        border: 1px solid {border_subtle} !important;
+        padding: 6px !important;
+        border-radius: 14px !important;
+        margin-bottom: 26px !important;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, {'0.3' if is_dark else '0.04'}) !important;
+        backdrop-filter: blur(12px) !important;
     }}
     div[data-baseweb="tab"],
     div[data-testid="stTab"],
     div[role="tab"] {{
-        border-radius: 10px 10px 0 0 !important;
+        border-radius: 10px !important;
         font-weight: 600 !important;
-        font-size: 0.95rem !important;
-        padding: 10px 22px !important;
+        font-size: 0.90rem !important;
+        padding: 8px 20px !important;
         color: {tab_color} !important;
         background: transparent !important;
-        transition: all 0.2s ease !important;
+        border: none !important;
+        border-bottom: none !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }}
     div[data-baseweb="tab"]:hover,
     div[data-testid="stTab"]:hover,
     div[role="tab"]:hover {{
         color: {text_primary} !important;
-        background: {'rgba(255, 255, 255, 0.04)' if is_dark else '#F1F5F9'} !important;
+        background: {'rgba(255, 255, 255, 0.08)' if is_dark else '#E2E8F0'} !important;
     }}
     div[data-baseweb="tab"][aria-selected="true"],
     div[data-testid="stTab"][aria-selected="true"],
     div[role="tab"][aria-selected="true"] {{
-        background: {tab_active_bg} !important;
-        color: {tab_active_color} !important;
-        border-bottom: 3px solid {tab_active_border} !important;
+        background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-bottom: none !important;
+        box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35) !important;
     }}
 
     /* Border Container Polish */
@@ -1130,7 +1144,9 @@ inject_custom_theme(is_dark)
 
 if "classification_results" not in st.session_state:
     st.session_state["classification_results"] = load_saved_results()
-saved_count = len(st.session_state["classification_results"])
+saved_df = st.session_state["classification_results"]
+saved_count = len(saved_df)
+brand_counts_map = saved_df["Brands"].value_counts().to_dict() if "Brands" in saved_df.columns else {}
 
 st.markdown(
     f"""
@@ -1158,12 +1174,13 @@ with st.sidebar:
     st.caption("Active zero-shot & probe recognition:")
     for b in TARGET_BRANDS:
         color = BRAND_COLORS.get(b, "#4F46E5")
+        b_count = brand_counts_map.get(b, 0)
         st.markdown(
             f"<div class='brand-pill-card'>"
             f"<div style='display:flex; align-items:center; gap:8px; font-size:0.9rem;'>"
             f"<span style='display:inline-block; width:10px; height:10px; border-radius:50%; background-color:{color}; box-shadow:0 0 6px {color};'></span>"
             f"<b>{b}</b></div>"
-            f"<span style='font-size:0.75rem; color:{'#94A3B8' if is_dark else '#64748B'}; font-weight:600;'>Active</span>"
+            f"<span style='font-size:0.75rem; font-weight:700; color:{color}; background:{color}18; border:1px solid {color}33; padding:2px 8px; border-radius:10px;'>{b_count:,} items</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -1360,12 +1377,13 @@ with analysis_tab:
         )
         average_people = float(people_per_photo.mean()) if not people_per_photo.empty else 0.0
 
-        top_b_label = f"{brand_stats['top_brand']} ({brand_stats['top_brand_count']})" if brand_stats.get("top_brand") else "None"
+        top_b_label = f"{brand_stats['top_brand']}" if brand_stats.get("top_brand") else "None"
+        top_b_delta = f"{brand_stats['top_brand_count']:,} sightings" if brand_stats.get("top_brand_count") else None
         with st.container(horizontal=True):
-            st.metric("Photos analyzed", f"{photo_count:,}", border=True)
-            st.metric("Person detections", f"{person_rows:,}", border=True)
-            st.metric("Branded outfit rate", f"{brand_stats['branded_penetration_percent']:.1f}%", help="Percentage of detected people with a target sportswear logo", border=True)
-            st.metric("Leading brand", top_b_label, border=True)
+            st.metric("Photos analyzed", f"{photo_count:,}", delta="100% Ingested", delta_color="normal", border=True)
+            st.metric("Person detections", f"{person_rows:,}", delta=f"{average_people:.1f} avg / photo", delta_color="normal", border=True)
+            st.metric("Branded outfit rate", f"{brand_stats['branded_penetration_percent']:.1f}%", delta=f"{brand_stats.get('total_branded_sightings', 0):,} logo hits", delta_color="normal", help="Percentage of detected people with a target sportswear logo", border=True)
+            st.metric("Leading brand", top_b_label, delta=top_b_delta, delta_color="normal", border=True)
 
         filter_options = ["All results", *attribute_columns]
         filter_col, tags_col = st.columns([1, 2])
@@ -1552,20 +1570,32 @@ with analysis_tab:
                         )
                         st.metric("Appearances", f"{brand_info.get('detections', 0):,}")
                         st.metric("Photos seen", f"{brand_info.get('unique_photos', 0):,}")
+                        top_g_list = list(brand_info.get("top_garments", {}).keys())
+                        top_c_list = list(brand_info.get("top_colors", {}).keys())
+                        fav_g = top_g_list[0] if top_g_list else "garments"
+                        fav_c = top_c_list[0] if top_c_list else "tones"
+                        insight_bg = "rgba(255, 255, 255, 0.04)" if is_dark else "rgba(79, 70, 229, 0.05)"
+                        insight_border = "rgba(255, 255, 255, 0.08)" if is_dark else "#E2E8F0"
+                        st.markdown(
+                            f"<div style='margin-top:12px; padding:10px 12px; border-radius:10px; background:{insight_bg}; border:1px solid {insight_border}; font-size:0.80rem; line-height:1.45;'>"
+                            f"✨ <b>Signature Look:</b> Commonly styled with <b style='color:{brand_color};'>{fav_g.lower()}</b> in <b style='color:{brand_color};'>{fav_c.lower()}</b> colorways."
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
                     with b_gar_col:
                         st.markdown("**Top Associated Garments**")
                         top_g = brand_info.get("top_garments", {})
                         if top_g:
                             max_g = max(top_g.values()) if top_g.values() else 1
-                            for g, cnt in top_g.items():
+                            for rank_idx, (g, cnt) in enumerate(top_g.items()):
                                 pct = int((cnt / max_g) * 100)
                                 bg_color = "rgba(255, 255, 255, 0.05)" if is_dark else "#F1F5F9"
                                 border_col = "rgba(255, 255, 255, 0.08)" if is_dark else "#E2E8F0"
                                 st.markdown(
                                     f"<div style='position:relative; overflow:hidden; padding:6px 12px; margin-bottom:5px; border-radius:8px; background:{bg_color}; font-size:0.86rem; border:1px solid {border_col};'>"
                                     f"<div style='position:absolute; left:0; top:0; bottom:0; width:{pct}%; background:{brand_color}22; pointer-events:none;'></div>"
-                                    f"<div style='display:flex; justify-content:space-between; position:relative; z-index:1;'>"
-                                    f"<span>{g}</span><b style='color:{brand_color};'>{cnt}</b>"
+                                    f"<div style='display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1;'>"
+                                    f"<span><span style='font-size:0.75rem; font-weight:700; opacity:0.6; margin-right:6px;'>#{rank_idx+1}</span>{g}</span><b style='color:{brand_color};'>{cnt}</b>"
                                     f"</div></div>",
                                     unsafe_allow_html=True,
                                 )
@@ -1576,15 +1606,15 @@ with analysis_tab:
                         top_c = brand_info.get("top_colors", {})
                         if top_c:
                             max_c = max(top_c.values()) if top_c.values() else 1
-                            for c, cnt in top_c.items():
+                            for rank_idx, (c, cnt) in enumerate(top_c.items()):
                                 pct = int((cnt / max_c) * 100)
                                 bg_color = "rgba(255, 255, 255, 0.05)" if is_dark else "#F1F5F9"
                                 border_col = "rgba(255, 255, 255, 0.08)" if is_dark else "#E2E8F0"
                                 st.markdown(
                                     f"<div style='position:relative; overflow:hidden; padding:6px 12px; margin-bottom:5px; border-radius:8px; background:{bg_color}; font-size:0.86rem; border:1px solid {border_col};'>"
                                     f"<div style='position:absolute; left:0; top:0; bottom:0; width:{pct}%; background:#6366F122; pointer-events:none;'></div>"
-                                    f"<div style='display:flex; justify-content:space-between; position:relative; z-index:1;'>"
-                                    f"<span>{c}</span><b style='color:#6366F1;'>{cnt}</b>"
+                                    f"<div style='display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1;'>"
+                                    f"<span><span style='font-size:0.75rem; font-weight:700; opacity:0.6; margin-right:6px;'>#{rank_idx+1}</span>{c}</span><b style='color:#6366F1;'>{cnt}</b>"
                                     f"</div></div>",
                                     unsafe_allow_html=True,
                                 )
