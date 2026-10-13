@@ -19,6 +19,8 @@ models/
 classification_images/
 datasetdownload/
 classification_results.csv
+train/
+
 
 # Archives
 *.zip
