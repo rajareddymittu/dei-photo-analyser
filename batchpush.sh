@@ -51,7 +51,7 @@ while IFS= read -r -d '' FILE; do
         BATCH_BYTES=0
     fi
 
-    git add -- "$FILE"
+    git add -- "./$FILE"
 
     BATCH_BYTES=$((BATCH_BYTES + FILE_SIZE))
     ADDED=$((ADDED + 1))
