@@ -20,6 +20,8 @@ classification_images/
 datasetdownload/
 classification_results.csv
 train/
+face_library_data/
+
 
 
 # Archives
@@ -27,3 +29,5 @@ train/
 
 # Temporary files
 :memory:.ses
+logs/
+*.log

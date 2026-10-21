@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 760" width="100%" height="100%" style="background:#0b0f19; font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;">
+  <defs>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="boxShadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#6366f1" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="500" y="38" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">End-to-End Processing Pipeline</text>
+  <text x="500" y="58" text-anchor="middle" fill="#94a3b8" font-size="12">Step-by-step flow from photo upload through classification, facial tracking, and dashboard rendering</text>
+
+  <!-- Flowchart nodes -->
+  <!-- START -->
+  <rect x="340" y="80" width="320" height="42" rx="21" fill="#4338ca" stroke="#6366f1" stroke-width="2" filter="url(#boxShadow)"/>
+  <text x="500" y="106" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="700">✨ Click 'Classify Wardrobe &amp; Detect Faces'</text>
+
+  <path d="M 500 122 L 500 150" stroke="#6366f1" stroke-width="2" marker-end="url(#flowArrow)"/>
+
+  <!-- STEP 1: Hashing & Check -->
+  <g transform="translate(150, 150)">
+    <rect width="700" height="95" rx="12" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" filter="url(#boxShadow)"/>
+    <rect x="15" y="12" width="130" height="22" rx="6" fill="#1e1b4b"/>
+    <text x="80" y="27" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="700">STEP 1: INGESTION</text>
+    
+    <text x="160" y="28" fill="#f1f5f9" font-size="12" font-weight="600">prepare_source() &amp; Deduplication Check</text>
+    <text x="25" y="55" fill="#94a3b8" font-size="11">• Compute SHA-256 content hash &amp; stable Photo ID using Path(name).name + hash</text>
+    <text x="25" y="73" fill="#94a3b8" font-size="11">• If Photo ID already in classification_results.csv and Force Rerun = False ➔ Load cached result</text>
+    <text x="25" y="90" fill="#38bdf8" font-size="10">⚡ Eliminates duplicate rescans and prevents duplicate database entries</text>
+  </g>
+
+  <path d="M 500 245 L 500 275" stroke="#6366f1" stroke-width="2" marker-end="url(#flowArrow)"/>
+
+  <!-- STEP 2: Faster R-CNN -->
+  <g transform="translate(150, 275)">
+    <rect width="700" height="95" rx="12" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" filter="url(#boxShadow)"/>
+    <rect x="15" y="12" width="170" height="22" rx="6" fill="#0f2b38"/>
+    <text x="100" y="27" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700">STEP 2: PERSON LOCALIZATION</text>
+    
+    <text x="200" y="28" fill="#f1f5f9" font-size="12" font-weight="600">Faster R-CNN (ResNet-50-FPN Backbone)</text>
+    <text x="25" y="55" fill="#94a3b8" font-size="11">• Runs PyTorch inference to detect bounding boxes with class label == person</text>
+    <text x="25" y="73" fill="#94a3b8" font-size="11">• Applies person_threshold (default 0.50); extracts crops with 12% X and 6% Y margin padding</text>
+    <text x="25" y="90" fill="#a5b4fc" font-size="10">Fallback: If no person is isolated, full photo is processed as whole-scene context</text>
+  </g>
+
+  <path d="M 500 370 L 500 400" stroke="#6366f1" stroke-width="2" marker-end="url(#flowArrow)"/>
+
+  <!-- STEP 3: OpenCLIP -->
+  <g transform="translate(150, 400)">
+    <rect width="700" height="105" rx="12" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" filter="url(#boxShadow)"/>
+    <rect x="15" y="12" width="180" height="22" rx="6" fill="#2e1065"/>
+    <text x="105" y="27" text-anchor="middle" fill="#c084fc" font-size="11" font-weight="700">STEP 3: ZERO-SHOT CLASSIFIER</text>
+    
+    <text x="210" y="28" fill="#f1f5f9" font-size="12" font-weight="600">OpenCLIP (ViT-B-32 @ LAION-2B)</text>
+    <text x="25" y="55" fill="#94a3b8" font-size="11">• Precomputed text embeddings across 150+ categories: clothing, colors, patterns, lengths, occasion</text>
+    <text x="25" y="73" fill="#94a3b8" font-size="11">• Cosine matrix multiplication + temperature softmax ranking (Top-3 labels saved)</text>
+    <text x="25" y="91" fill="#10b981" font-size="11" font-weight="600">🏷️ Sportswear Brands: Nike, Adidas, Puma, Under Armour, New Balance (Threshold: 0.55)</text>
+    <text x="25" y="105" fill="#94a3b8" font-size="10">Appends row to classification_results.csv with person index, bounding box, and attribute tags</text>
+  </g>
+
+  <path d="M 500 505 L 500 535" stroke="#6366f1" stroke-width="2" marker-end="url(#flowArrow)"/>
+
+  <!-- STEP 4: AuraFace -->
+  <g transform="translate(150, 535)">
+    <rect width="700" height="120" rx="12" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" filter="url(#boxShadow)"/>
+    <rect x="15" y="12" width="180" height="22" rx="6" fill="#064e3b"/>
+    <text x="105" y="27" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700">STEP 4: AURA-FACE PIPELINE</text>
+    
+    <text x="210" y="28" fill="#f1f5f9" font-size="12" font-weight="600">SCRFD 10G Detection &amp; AuraFace-v1 Recognition (ONNX)</text>
+    <text x="25" y="54" fill="#94a3b8" font-size="11">• Detects faces with 5-point landmarks; extracts 512-D normalized face embeddings</text>
+    <text x="25" y="71" fill="#94a3b8" font-size="11">• Computes cosine similarity against face_embeddings.npz multi-template centroids</text>
+    <text x="25" y="89" fill="#f1f5f9" font-size="10">
+      <tspan fill="#34d399" font-weight="700">Score &gt;= 82%:</tspan> MATCHED (Existing ID)  |  
+      <tspan fill="#f59e0b" font-weight="700">77% - 82%:</tspan> NEEDS REVIEW (Flag duplicate)  |  
+      <tspan fill="#38bdf8" font-weight="700">&lt; 77%:</tspan> NEW IDENTITY (johndoe_...)
+    </text>
+    <text x="25" y="108" fill="#94a3b8" font-size="10">Saves face crop to faces/, logs appearance to face_occurrences.csv, updates face_registry.json</text>
+  </g>
+
+  <path d="M 500 655 L 500 685" stroke="#6366f1" stroke-width="2" marker-end="url(#flowArrow)"/>
+
+  <!-- OUTPUT: UI UPDATE -->
+  <rect x="250" y="685" width="500" height="42" rx="10" fill="#0f172a" stroke="#10b981" stroke-width="2" filter="url(#boxShadow)"/>
+  <text x="500" y="711" text-anchor="middle" fill="#34d399" font-size="13" font-weight="700">🎉 Streamlit Hot-Reloads: Analysis, Results, Face Cards &amp; AI Chat</text>
+</svg>

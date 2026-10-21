@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="100%" height="100%" style="background:#0b0f19; font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="cardGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="indigoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#6366f1" />
+    </marker>
+    <marker id="arrow-cyan" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#06b6d4" />
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#8b5cf6" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="500" y="38" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700" letter-spacing="0.5">System Architecture &amp; Data Pipeline</text>
+  <text x="500" y="60" text-anchor="middle" fill="#94a3b8" font-size="12">Multi-Modal Vision AI • Zero-Shot Wardrobe Classification • AuraFace Identity Matching</text>
+
+  <!-- 1. INPUT SECTION -->
+  <g transform="translate(40, 85)">
+    <rect width="260" height="490" rx="14" fill="url(#cardGrad1)" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+    <rect x="14" y="14" width="232" height="30" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="130" y="34" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700">1. INGESTION &amp; HASHING</text>
+
+    <!-- Source Items -->
+    <rect x="20" y="60" width="220" height="70" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+    <text x="35" y="86" fill="#f1f5f9" font-size="12" font-weight="600">📁 Photo Uploads</text>
+    <text x="35" y="104" fill="#94a3b8" font-size="10">JPG • PNG • WEBP • BMP</text>
+    <text x="35" y="118" fill="#64748b" font-size="9">Streamlit st.file_uploader</text>
+
+    <rect x="20" y="145" width="220" height="70" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+    <text x="35" y="171" fill="#f1f5f9" font-size="12" font-weight="600">🖼️ Gallery Samples</text>
+    <text x="35" y="189" fill="#94a3b8" font-size="10">Curated dataset (train/)</text>
+    <text x="35" y="203" fill="#64748b" font-size="9">Immediate 1-click test flow</text>
+
+    <!-- Preprocessor -->
+    <rect x="20" y="245" width="220" height="110" rx="10" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5"/>
+    <text x="130" y="272" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="700">prepare_source()</text>
+    <text x="35" y="295" fill="#a5b4fc" font-size="10">• SHA-256 Content Hashing</text>
+    <text x="35" y="313" fill="#a5b4fc" font-size="10">• Deterministic Photo ID</text>
+    <text x="35" y="331" fill="#a5b4fc" font-size="10">• Persist: classification_images/</text>
+    <text x="35" y="347" fill="#818cf8" font-size="9">• Duplicate prevention gate</text>
+
+    <rect x="20" y="380" width="220" height="85" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+    <text x="35" y="405" fill="#38bdf8" font-size="11" font-weight="600">⚡ Deduplication Cache</text>
+    <text x="35" y="423" fill="#94a3b8" font-size="10">Avoids re-running previously</text>
+    <text x="35" y="439" fill="#94a3b8" font-size="10">scanned photos unless</text>
+    <text x="35" y="455" fill="#f59e0b" font-size="9" font-weight="600">Force rerun is toggled</text>
+  </g>
+
+  <!-- Connect 1 to 2 -->
+  <path d="M 300 380 L 370 250" fill="none" stroke="#6366f1" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="4,4"/>
+  <path d="M 300 380 L 370 450" fill="none" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrow-purple)" stroke-dasharray="4,4"/>
+
+  <!-- 2. AI ENGINES -->
+  <g transform="translate(370, 85)">
+    <rect width="280" height="490" rx="14" fill="url(#cardGrad1)" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+    <rect x="14" y="14" width="252" height="30" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="140" y="34" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="700">2. DUAL-VISION AI PIPELINE</text>
+
+    <!-- Branch A: Wardrobe -->
+    <rect x="15" y="60" width="250" height="190" rx="10" fill="#0f172a" stroke="#4338ca" stroke-width="1.5"/>
+    <rect x="25" y="70" width="230" height="24" rx="6" fill="#1e1b4b"/>
+    <text x="140" y="86" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="700">WARDROBE &amp; BRANDS</text>
+    
+    <text x="25" y="112" fill="#38bdf8" font-size="11" font-weight="600">Faster R-CNN (ResNet-50-FPN)</text>
+    <text x="25" y="127" fill="#94a3b8" font-size="9">• Detects person boxes (threshold 0.50)</text>
+    <text x="25" y="141" fill="#94a3b8" font-size="9">• 12% width / 6% height margin crops</text>
+
+    <line x1="25" y1="150" x2="255" y2="150" stroke="#1e293b" stroke-width="1"/>
+
+    <text x="25" y="168" fill="#c084fc" font-size="11" font-weight="600">OpenCLIP (ViT-B-32 @ LAION-2B)</text>
+    <text x="25" y="183" fill="#94a3b8" font-size="9">• Zero-shot 150+ attribute matching</text>
+    <text x="25" y="197" fill="#94a3b8" font-size="9">• Clothing, Colors, Patterns, Occasions</text>
+    <text x="25" y="211" fill="#10b981" font-size="9" font-weight="600">🏷️ Sportswear: Nike, Adidas, Puma, UA, NB</text>
+    <text x="25" y="225" fill="#f59e0b" font-size="9">• Brand confirmation threshold: 0.55</text>
+
+    <!-- Branch B: Face Recognition -->
+    <rect x="15" y="270" width="250" height="195" rx="10" fill="#0f172a" stroke="#7e22ce" stroke-width="1.5"/>
+    <rect x="25" y="280" width="230" height="24" rx="6" fill="#2e1065"/>
+    <text x="140" y="296" text-anchor="middle" fill="#e9d5ff" font-size="11" font-weight="700">PERSISTENT FACE MATCHING</text>
+
+    <text x="25" y="322" fill="#f472b6" font-size="11" font-weight="600">SCRFD 10G ONNX Detector</text>
+    <text x="25" y="337" fill="#94a3b8" font-size="9">• 5-Point facial landmarks regression</text>
+    <text x="25" y="351" fill="#94a3b8" font-size="9">• CoreML &amp; CPU execution provider</text>
+
+    <line x1="25" y1="360" x2="255" y2="360" stroke="#1e293b" stroke-width="1"/>
+
+    <text x="25" y="378" fill="#c084fc" font-size="11" font-weight="600">AuraFace-v1 glintr100 ONNX</text>
+    <text x="25" y="393" fill="#94a3b8" font-size="9">• 512-D normalized embeddings</text>
+    <text x="25" y="407" fill="#94a3b8" font-size="9">• Multi-template cosine matching</text>
+    <text x="25" y="421" fill="#38bdf8" font-size="9">• Match Threshold: 82.0% (Margin 4%)</text>
+    <text x="25" y="435" fill="#fb923c" font-size="9">• Review Band: 77-82% (Flag Duplicate)</text>
+    <text x="25" y="449" fill="#10b981" font-size="9">• Crops saved: face_library_data/faces/</text>
+  </g>
+
+  <!-- Connect 2 to 3 -->
+  <path d="M 650 180 L 720 180" fill="none" stroke="#6366f1" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M 650 370 L 720 370" fill="none" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrow-purple)"/>
+
+  <!-- 3. STORAGE & PRESENTATION -->
+  <g transform="translate(720, 85)">
+    <rect width="240" height="490" rx="14" fill="url(#cardGrad1)" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+    <rect x="14" y="14" width="212" height="30" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="120" y="34" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700">3. STORAGE &amp; DASHBOARD</text>
+
+    <!-- Storage block -->
+    <rect x="15" y="60" width="210" height="150" rx="10" fill="#0f172a" stroke="#059669" stroke-width="1"/>
+    <text x="25" y="84" fill="#34d399" font-size="11" font-weight="700">💾 Master Databases</text>
+    <text x="25" y="104" fill="#f1f5f9" font-size="10">📄 classification_results.csv</text>
+    <text x="35" y="118" fill="#64748b" font-size="9">Wardrobe, brands &amp; bbox tags</text>
+    <text x="25" y="138" fill="#f1f5f9" font-size="10">👤 face_registry.json</text>
+    <text x="35" y="152" fill="#64748b" font-size="9">Named identities &amp; status flags</text>
+    <text x="25" y="172" fill="#f1f5f9" font-size="10">📊 face_occurrences.csv</text>
+    <text x="35" y="186" fill="#64748b" font-size="9">Sighting coordinates &amp; match %</text>
+    <text x="25" y="202" fill="#f1f5f9" font-size="10">🧬 face_embeddings.npz</text>
+
+    <!-- UI Block -->
+    <rect x="15" y="230" width="210" height="235" rx="10" fill="#0f172a" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="25" y="254" fill="#60a5fa" font-size="11" font-weight="700">🖥️ Streamlit 5-Tab UI</text>
+    
+    <text x="25" y="278" fill="#f1f5f9" font-size="10">1. Upload &amp; Classify</text>
+    <text x="35" y="292" fill="#94a3b8" font-size="9">1-Click unified multi-modal scan</text>
+    
+    <text x="25" y="312" fill="#f1f5f9" font-size="10">2. Analysis Analytics</text>
+    <text x="35" y="326" fill="#94a3b8" font-size="9">Brand market share &amp; donuts</text>
+    
+    <text x="25" y="346" fill="#f1f5f9" font-size="10">3. Classification Records</text>
+    <text x="35" y="360" fill="#94a3b8" font-size="9">Brand pills &amp; photo inspector</text>
+    
+    <text x="25" y="380" fill="#f1f5f9" font-size="10">4. Face Library</text>
+    <text x="35" y="394" fill="#10b981" font-size="9">• Interactive Face Cards Grid</text>
+    <text x="35" y="408" fill="#10b981" font-size="9">• Profile dialog + BBox border</text>
+    <text x="35" y="422" fill="#10b981" font-size="9">• 1-Click Identity Deduplication</text>
+
+    <text x="25" y="442" fill="#f1f5f9" font-size="10">5. AI Assistant</text>
+    <text x="35" y="456" fill="#94a3b8" font-size="9">Groq Llama-3.3-70B data chat</text>
+  </g>
+
+  <!-- Footer note -->
+  <text x="500" y="605" text-anchor="middle" fill="#64748b" font-size="11">Automated Multi-Modal Vision System • Optimized for Apple Silicon / CPU / CUDA</text>
+</svg>

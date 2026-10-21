@@ -16,6 +16,9 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageOps
 
+from error_logger import log_error, log_warning
+
+
 
 ROOT = Path(__file__).resolve().parent.parent
 FACE_DATA_DIR = ROOT / "face_library_data"
@@ -66,24 +69,35 @@ def _empty_registry() -> dict[str, Any]:
 
 def load_face_data() -> tuple[dict[str, Any], pd.DataFrame, dict[str, np.ndarray]]:
     FACE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    registry = _empty_registry()
     if REGISTRY_FILE.exists():
-        registry = json.loads(REGISTRY_FILE.read_text(encoding="utf-8"))
-    else:
-        registry = _empty_registry()
+        try:
+            registry = json.loads(REGISTRY_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            log_error(f"Failed to read face registry file {REGISTRY_FILE}", exc)
+            registry = _empty_registry()
     registry.setdefault("identities", [])
     registry.setdefault("processed_photos", {})
     if OCCURRENCES_FILE.exists():
-        occurrences = pd.read_csv(OCCURRENCES_FILE, dtype=str, keep_default_na=False)
-        for column in OCCURRENCE_COLUMNS:
-            if column not in occurrences:
-                occurrences[column] = ""
-        occurrences = occurrences[OCCURRENCE_COLUMNS]
+        try:
+            occurrences = pd.read_csv(OCCURRENCES_FILE, dtype=str, keep_default_na=False)
+            for column in OCCURRENCE_COLUMNS:
+                if column not in occurrences:
+                    occurrences[column] = ""
+            occurrences = occurrences[OCCURRENCE_COLUMNS].drop_duplicates(subset=["Photo", "Face ID", "Bounding box"])
+        except Exception as exc:
+            log_error(f"Failed to read face occurrences file {OCCURRENCES_FILE}", exc)
+            occurrences = pd.DataFrame(columns=OCCURRENCE_COLUMNS)
     else:
         occurrences = pd.DataFrame(columns=OCCURRENCE_COLUMNS)
     templates: dict[str, np.ndarray] = {}
     if EMBEDDINGS_FILE.exists():
-        with np.load(EMBEDDINGS_FILE, allow_pickle=False) as stored:
-            templates = {key: stored[key].astype(np.float32) for key in stored.files}
+        try:
+            with np.load(EMBEDDINGS_FILE, allow_pickle=False) as stored:
+                templates = {key: stored[key].astype(np.float32) for key in stored.files}
+        except Exception as exc:
+            log_error(f"Failed to read face embeddings file {EMBEDDINGS_FILE}", exc)
+            templates = {}
     return registry, occurrences, templates
 
 
@@ -99,15 +113,20 @@ def _save_face_data(
     occurrences: pd.DataFrame,
     templates: dict[str, np.ndarray],
 ) -> None:
-    FACE_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    _atomic_write_json(REGISTRY_FILE, registry)
-    embedding_temp = EMBEDDINGS_FILE.with_suffix(".npz.tmp")
-    with embedding_temp.open("wb") as stream:
-        np.savez_compressed(stream, **templates)
-    embedding_temp.replace(EMBEDDINGS_FILE)
-    occurrence_temp = OCCURRENCES_FILE.with_suffix(".csv.tmp")
-    occurrences.to_csv(occurrence_temp, index=False)
-    occurrence_temp.replace(OCCURRENCES_FILE)
+    try:
+        FACE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        _atomic_write_json(REGISTRY_FILE, registry)
+        embedding_temp = EMBEDDINGS_FILE.with_suffix(".npz.tmp")
+        with embedding_temp.open("wb") as stream:
+            np.savez_compressed(stream, **templates)
+        embedding_temp.replace(EMBEDDINGS_FILE)
+        occurrence_temp = OCCURRENCES_FILE.with_suffix(".csv.tmp")
+        occurrences.to_csv(occurrence_temp, index=False)
+        occurrence_temp.replace(OCCURRENCES_FILE)
+    except Exception as exc:
+        log_error("Failed to save face library data", exc)
+        raise
+
 
 
 def load_face_analyzer() -> Any:
@@ -349,7 +368,9 @@ def process_face_photos(
             counts["processed"] += 1
         except Exception as exc:  # record individual photo failures and continue the batch
             photo_error = f"{photo_name}: {exc}"
+            log_error(f"Face processing error for photo {photo_name}", exc, {"photo_id": photo_id, "path": photo_path})
             errors.append(photo_error)
+
         if progress_callback is not None:
             progress_callback(photo_index, len(todo), photo_name, counts.copy(), photo_error)
 

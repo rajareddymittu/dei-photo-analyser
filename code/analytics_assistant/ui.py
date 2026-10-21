@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import streamlit as st
 
+from error_logger import log_error
 from .providers import configured_provider
+
 
 
 SYSTEM_PROMPT = """You are the expert AI analytics assistant for a high-end clothing photo intelligence dashboard.
@@ -46,10 +48,15 @@ def get_chat_css(is_dark: bool = False) -> str:
         banner_border = "rgba(99, 102, 241, 0.3)"
         title_color = "#F8FAFC"
         subtitle_color = "#94A3B8"
+        chat_input_bg = "rgba(15, 23, 42, 0.95)"
+        chat_input_border = "rgba(99, 102, 241, 0.35)"
+        chat_input_shadow = "0 8px 32px rgba(0, 0, 0, 0.45)"
+        bottom_bg = "linear-gradient(180deg, rgba(11, 15, 25, 0) 0%, rgba(11, 15, 25, 0.92) 35%, #0B0F19 100%)"
+        text_color = "#F8FAFC"
     else:
         user_bg = "linear-gradient(135deg, #4338CA 0%, #4F46E5 100%)"
         user_shadow = "0 4px 14px rgba(67, 56, 202, 0.25)"
-        assistant_bg = "#F8FAFC"
+        assistant_bg = "#FFFFFF"
         assistant_border = "1px solid #E2E8F0"
         assistant_shadow = "0 2px 8px rgba(15, 23, 42, 0.04)"
         assistant_text = "#0F172A"
@@ -57,6 +64,11 @@ def get_chat_css(is_dark: bool = False) -> str:
         banner_border = "rgba(79, 70, 229, 0.2)"
         title_color = "#1E293B"
         subtitle_color = "#64748B"
+        chat_input_bg = "#FFFFFF"
+        chat_input_border = "rgba(79, 70, 229, 0.3)"
+        chat_input_shadow = "0 8px 30px rgba(15, 23, 42, 0.08)"
+        bottom_bg = "linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, rgba(248, 250, 252, 0.95) 35%, #F8FAFC 100%)"
+        text_color = "#0F172A"
 
     return f"""
     <style>
@@ -84,6 +96,67 @@ def get_chat_css(is_dark: bool = False) -> str:
         color: {subtitle_color};
         margin-top: 4px;
     }}
+
+    /* ========================================================
+       MODERN AI CHAT DOCKED BOTTOM INPUT WINDOW
+       ======================================================== */
+    div[data-testid="stBottom"],
+    .stChatFloatingInputContainer {{
+        position: sticky !important;
+        bottom: 0 !important;
+        z-index: 100 !important;
+        background: {bottom_bg} !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        padding-top: 16px !important;
+        padding-bottom: 24px !important;
+        margin-top: 20px !important;
+        border-top: 1px solid {banner_border} !important;
+    }}
+
+    div[data-testid="stChatInput"] {{
+        border-radius: 28px !important;
+        border: 1.5px solid {chat_input_border} !important;
+        background: {chat_input_bg} !important;
+        box-shadow: {chat_input_shadow} !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        max-width: 960px !important;
+        margin: 0 auto !important;
+        padding: 4px 6px 4px 10px !important;
+    }}
+
+    div[data-testid="stChatInput"]:focus-within {{
+        border-color: #6366F1 !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25), {chat_input_shadow} !important;
+    }}
+
+    div[data-testid="stChatInput"] textarea {{
+        font-size: 0.96rem !important;
+        color: {text_color} !important;
+        padding: 10px 14px !important;
+        background: transparent !important;
+    }}
+
+    div[data-testid="stChatInput"] button {{
+        border-radius: 50% !important;
+        background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
+        color: #FFFFFF !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+        margin-right: 4px !important;
+        box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35) !important;
+    }}
+
+    div[data-testid="stChatInput"] button:hover {{
+        transform: scale(1.08) !important;
+        box-shadow: 0 4px 14px rgba(79, 70, 229, 0.5) !important;
+    }}
+
+    /* Message list container padding so bottom message is never obscured */
+    div[data-testid="stChatMessage"] {{
+        margin-bottom: 16px !important;
+    }}
+
+
 
     /* ========================================================
        USER CHAT BUBBLE - RIGHT ALIGNED
@@ -240,6 +313,7 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
             try:
                 response = st.write_stream(provider.stream_chat(provider_messages))
             except Exception as exc:
+                log_error("Analytics Assistant stream_chat failed", exc)
                 response = "I couldn't reach the analytics provider. Check your Groq API key, model setting, and network connection, then try again."
                 st.error(response)
                 st.caption(f"Provider error: {type(exc).__name__}")
@@ -263,8 +337,10 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
         try:
             response = st.write_stream(provider.stream_chat(provider_messages))
         except Exception as exc:
+            log_error("Analytics Assistant stream_chat failed", exc)
             response = "I couldn't reach the analytics provider. Check your Groq API key, model setting, and network connection, then try again."
             st.error(response)
             st.caption(f"Provider error: {type(exc).__name__}")
     if response:
         messages.append({"role": "assistant", "content": str(response)})
+

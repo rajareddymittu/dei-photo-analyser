@@ -23,8 +23,11 @@ import pandas as pd
 import streamlit as st
 import torch
 import open_clip
-import face_identity
 import altair as alt
+import face_identity
+from error_logger import logger, log_error, log_warning, get_recent_errors, ERROR_LOG_PATH
+
+
 from analytics_assistant import (
     ALL_BRAND_LABELS,
     BRAND_COLORS,
@@ -36,7 +39,7 @@ from analytics_assistant import (
 from analytics_assistant.ui import render_analytics_chat
 from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights, fasterrcnn_resnet50_fpn
 from torchvision.transforms.functional import to_tensor
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
 st.set_page_config(
     page_title="Wardrobe & Brand Intelligence",
@@ -182,8 +185,10 @@ def load_saved_results() -> pd.DataFrame:
             if column not in saved:
                 saved[column] = ""
         return saved[RESULT_COLUMNS]
-    except (OSError, pd.errors.ParserError, UnicodeDecodeError):
+    except (OSError, pd.errors.ParserError, UnicodeDecodeError) as exc:
+        log_error("Could not load saved classification results CSV", exc)
         return pd.DataFrame(columns=RESULT_COLUMNS)
+
 
 
 @st.cache_data(max_entries=5000)
@@ -202,18 +207,20 @@ def thumbnail_data_uri(source_path: str, modified_ns: int, size: int = 20) -> st
             canvas.save(buffer, format="JPEG", quality=50, optimize=True)
         encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
         return f"data:image/jpeg;base64,{encoded}"
-    except (OSError, UnidentifiedImageError, ValueError):
+    except (OSError, UnidentifiedImageError, ValueError) as exc:
+        log_warning(f"Could not generate thumbnail for {source_path}", exc)
         return ""
+
 
 
 def prepare_source(name: str, source: Any) -> tuple[str, str]:
     """Return a stable photo ID and durable path for a train or uploaded image."""
     if isinstance(source, (str, Path)):
         path = Path(source).resolve()
-        identity = str(path)
+        identity = Path(name).name
         contents = path.read_bytes()
     else:
-        identity = name
+        identity = Path(name).name
         contents = source.getvalue()
         suffix = Path(name).suffix.lower()
         if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".bmp"}:
@@ -359,6 +366,7 @@ def run_classification(
     person_threshold: float,
     force_rerun: bool,
     brand_threshold: float = 0.55,
+    scan_faces: bool = True,
 ) -> None:
     if not items:
         st.info("Choose at least one photo to classify.")
@@ -377,6 +385,9 @@ def run_classification(
     if not pending:
         st.session_state["classification_results"] = saved
         st.info("Loaded saved results. No photos were classified again. Check **Force rerun** to reprocess the selected photos.")
+        if scan_faces and prepared:
+            face_items = [(name, source_path) for (name, _, source_path) in prepared]
+            run_face_matching(face_items, force_rerun=force_rerun)
         return
 
     model, preprocess, tokenizer, device = load_model()
@@ -415,6 +426,7 @@ def run_classification(
                     **labels,
                 })
         except (OSError, UnidentifiedImageError, ValueError) as exc:
+            log_error(f"Classification failed for {name} ({source_path})", exc, {"photo_id": photo_id})
             rows.append({
                 "Photo": name,
                 "Classified date": classified_date,
@@ -441,6 +453,11 @@ def run_classification(
     load_saved_results.clear()
     st.session_state["classification_results"] = results
     st.success(f"Saved results for {len(pending)} photo(s) to `{RESULTS_FILE.name}`.")
+
+    if scan_faces and pending:
+        face_items = [(name, source_path) for (name, _, source_path) in pending]
+        run_face_matching(face_items, force_rerun=force_rerun)
+
 
 
 @st.cache_data(max_entries=128, show_spinner=False)
@@ -545,6 +562,7 @@ def run_face_matching(items: list[tuple[str, Any]], force_rerun: bool = False) -
             photo_id, source_path = prepare_source(name, source)
             prepared.append((name, photo_id, source_path))
         except OSError as exc:
+            log_error(f"Could not prepare {name} for face matching", exc)
             st.warning(f"Could not prepare {name}: {exc}")
         preparation_progress.progress(
             index / len(items), text=f"Preparing face scan: {index}/{len(items)} photos…"
@@ -556,6 +574,7 @@ def run_face_matching(items: list[tuple[str, Any]], force_rerun: bool = False) -
         with st.spinner("Loading face detector and recognition models…"):
             analyzer = load_face_analyzer()
     except Exception as exc:
+        log_error("Face detector initialization error", exc)
         st.error(
             "Face matching could not start. Install the face dependencies listed at the top of "
             f"`code/classifier.py`, then retry. Details: {exc}"
@@ -586,6 +605,7 @@ def run_face_matching(items: list[tuple[str, Any]], force_rerun: bool = False) -
         )
     except Exception as exc:
         scan_progress.empty()
+        log_error("Face scan stopped before completion", exc)
         st.error(f"Face scan stopped before completion. Details: {exc}")
         return
     scan_progress.empty()
@@ -595,7 +615,9 @@ def run_face_matching(items: list[tuple[str, Any]], force_rerun: bool = False) -
         f"{result['skipped']} already scanned."
     )
     for error in result["errors"]:
+        log_error(f"Face scan error: {error}")
         st.warning(error)
+
 
 
 @st.dialog("Photo & Wardrobe Intelligence", width="large")
@@ -657,6 +679,239 @@ def show_photo_preview(name: str, image: Image.Image, people: list[tuple[str, Im
                                     f"</div>",
                                     unsafe_allow_html=True,
                                 )
+
+
+
+@st.dialog("👤 Face Profile & Intelligence", width="large")
+def show_face_profile_dialog(face_id: str) -> None:
+    try:
+        registry, occurrences, templates = face_identity.load_face_data()
+    except Exception as exc:
+        st.error(f"Could not load face data: {exc}")
+        return
+
+    identity = next((p for p in registry.get("identities", []) if p["face_id"] == face_id), None)
+    if not identity:
+        st.error("Face identity not found.")
+        return
+
+    face_occs = occurrences[occurrences["Face ID"] == face_id].copy() if not occurrences.empty else pd.DataFrame()
+    crop_path = ROOT / identity.get("representative_image", "")
+    display_name = identity.get("display_name", face_id)
+    review_status = identity.get("review_status", "matched")
+    possible_match_id = identity.get("possible_match_id", "")
+
+    # Header Card
+    head_col1, head_col2 = st.columns([1, 2.2], vertical_alignment="center")
+    with head_col1:
+        if crop_path.is_file():
+            st.image(str(crop_path), caption=f"Detection Quality: {float(identity.get('representative_quality', 0)):.1%}", width="stretch")
+        else:
+            st.caption("No preview crop available")
+
+    with head_col2:
+        with st.form(f"rename_face_form_{face_id}"):
+            new_name = st.text_input("Display Name", value=display_name, label_visibility="visible")
+            rename_submitted = st.form_submit_button("💾 Save Name", type="secondary")
+            if rename_submitted and new_name.strip() and new_name.strip() != display_name:
+                face_identity.rename_face_identities({face_id: new_name.strip()})
+                st.success(f"Updated name to '{new_name.strip()}'.")
+                st.rerun()
+
+        st.caption(f"**Stable ID:** `{face_id}`")
+        if review_status == "needs_review":
+            st.markdown(":orange-badge[⚠️ Needs Review / Duplicate Candidate]")
+        elif review_status == "new":
+            st.markdown(":blue-badge[🆕 New Identity]")
+        else:
+            st.markdown(":green-badge[✅ Verified Match]")
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Photos Seen", f"{len(face_occs):,}")
+        created_str = str(identity.get("created_at_utc", "N/A"))[:10]
+        last_str = str(identity.get("last_seen_utc", "N/A"))[:10]
+        m2.metric("First Seen", created_str if created_str != "None" else "N/A")
+        m3.metric("Last Seen", last_str if last_str != "None" else "N/A")
+
+    st.divider()
+
+    unique_occs = face_occs.drop_duplicates(subset=["Photo", "Bounding box"]).copy()
+
+    # Detailed Tabs inside dialog
+    dialog_tabs = st.tabs([
+        f":material/photo_library: Photo Sightings ({len(unique_occs)})",
+        ":material/checkroom: Wardrobe & Brand Profile",
+        ":material/merge: Deduplication & Merge",
+    ])
+
+    with dialog_tabs[0]:
+        if unique_occs.empty:
+            st.info("No photo appearances found for this person.")
+        else:
+            st.caption(f"Showing **{len(unique_occs)}** unique photo sighting(s) with the detected face highlighted:")
+            for _, occ in unique_occs.iterrows():
+                with st.container(border=True):
+                    photo_path_str = str(occ.get("Photo path", ""))
+                    photo_name = str(occ.get("Photo", "Photo"))
+                    seen_utc = str(occ.get("Seen at UTC", ""))
+                    match_score = occ.get("Match score %", "")
+                    detector_score = occ.get("Detector score", "")
+                    bbox_str = str(occ.get("Bounding box", ""))
+
+                    img_col, meta_col = st.columns([1.6, 1], vertical_alignment="top")
+
+                    with img_col:
+                        if Path(photo_path_str).is_file():
+                            try:
+                                with Image.open(photo_path_str) as raw_img:
+                                    full_img = ImageOps.exif_transpose(raw_img).convert("RGB")
+                                    if bbox_str:
+                                        coords = [int(float(c.strip())) for c in bbox_str.split(",") if c.strip()]
+                                        if len(coords) == 4:
+                                            x1, y1, x2, y2 = coords
+                                            annotated_img = full_img.copy()
+                                            draw = ImageDraw.Draw(annotated_img)
+                                            line_w = max(3, int(max(annotated_img.size) * 0.005))
+                                            # Outer dark border for contrast, then vibrant highlight box
+                                            draw.rectangle([x1 - 1, y1 - 1, x2 + 1, y2 + 1], outline="#0F172A", width=line_w + 2)
+                                            draw.rectangle([x1, y1, x2, y2], outline="#6366F1", width=line_w)
+                                            st.image(annotated_img, caption=f"Full Photo: {photo_name} (Face highlighted in purple)", width="stretch")
+                                        else:
+                                            st.image(full_img, caption=f"Full Photo: {photo_name}", width="stretch")
+                                    else:
+                                        st.image(full_img, caption=f"Full Photo: {photo_name}", width="stretch")
+                            except Exception:
+                                st.caption("Image preview unavailable")
+                        else:
+                            st.caption(f"Source photo not found: {photo_name}")
+
+                    with meta_col:
+                        st.markdown(f"**Photo:** `{photo_name}`")
+                        if seen_utc:
+                            st.caption(f"🗓️ **Sighted:** {seen_utc}")
+
+                        if match_score and str(match_score).strip():
+                            st.metric("Identity Match", f"{float(match_score):.1f}%")
+                        if detector_score and str(detector_score).strip():
+                            st.caption(f"Detection Confidence: `{float(detector_score):.2f}`")
+
+                        if "classification_results" in st.session_state and not st.session_state["classification_results"].empty:
+                            c_df = st.session_state["classification_results"]
+                            matched_records = c_df[c_df["Photo ID"] == str(occ.get("Photo ID", ""))]
+                            if matched_records.empty:
+                                matched_records = c_df[c_df["Photo"] == photo_name]
+                            if not matched_records.empty:
+                                sample_rec = matched_records.iloc[0]
+                                brand_val = sample_rec.get("Brands", sample_rec.get("Brand", ""))
+                                clothing_val = sample_rec.get("Clothing types", "")
+                                color_val = sample_rec.get("Colors", "")
+                                st.divider()
+                                st.markdown("**Wardrobe in this Photo:**")
+                                if brand_val and brand_val != "Other / unbranded":
+                                    color = BRAND_COLORS.get(brand_val, "#6366F1")
+                                    st.markdown(f"<span style='background:{color}22; color:{color}; border:1px solid {color}44; padding:2px 8px; border-radius:12px; font-weight:700;'>🏷️ {brand_val}</span>", unsafe_allow_html=True)
+                                if clothing_val:
+                                    st.write(f"👕 {clothing_val}")
+                                if color_val:
+                                    st.write(f"🎨 {color_val}")
+
+    with dialog_tabs[1]:
+        if "classification_results" in st.session_state and not st.session_state["classification_results"].empty and not face_occs.empty:
+            c_df = st.session_state["classification_results"]
+            photo_ids = set(face_occs["Photo ID"].dropna().astype(str))
+            photo_names = set(face_occs["Photo"].dropna().astype(str))
+            person_photos = c_df[c_df["Photo ID"].astype(str).isin(photo_ids) | c_df["Photo"].astype(str).isin(photo_names)]
+
+            if not person_photos.empty:
+                st.markdown(f"**Wardrobe Insights across {len(person_photos)} photo sightings:**")
+                w_col1, w_col2, w_col3 = st.columns(3)
+
+                with w_col1:
+                    st.markdown("##### 🏷️ Sportswear Brands")
+                    brand_col = "Brands" if "Brands" in person_photos else ("Brand" if "Brand" in person_photos else None)
+                    if brand_col:
+                        brand_series = person_photos[brand_col].dropna().astype(str).str.split(";").explode().str.strip()
+                        brand_series = brand_series[brand_series.ne("") & (brand_series != "nan") & (brand_series != "Other / unbranded")]
+                        if not brand_series.empty:
+                            for b_name, b_cnt in brand_series.value_counts().head(5).items():
+                                color = BRAND_COLORS.get(b_name, "#3B82F6")
+                                st.markdown(
+                                    f"<div style='margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; background:{color}18; border:1px solid {color}33; border-radius:8px; padding:4px 10px;'>"
+                                    f"<b style='color:{color};'>{b_name}</b>"
+                                    f"<span style='font-weight:700; font-size:0.8rem;'>{b_cnt}×</span>"
+                                    f"</div>",
+                                    unsafe_allow_html=True,
+                                )
+                        else:
+                            st.caption("No specific brand logos detected on this individual.")
+                    else:
+                        st.caption("No brand column found.")
+
+                with w_col2:
+                    st.markdown("##### 👕 Clothing Types")
+                    if "Clothing types" in person_photos:
+                        clothing_series = person_photos["Clothing types"].dropna().astype(str).str.split(";").explode().str.strip()
+                        clothing_series = clothing_series[clothing_series.ne("") & (clothing_series != "nan")]
+                        if not clothing_series.empty:
+                            for c_name, c_cnt in clothing_series.value_counts().head(5).items():
+                                st.markdown(f"• **{c_name}** ({c_cnt}×)")
+                        else:
+                            st.caption("No clothing types recorded.")
+
+                with w_col3:
+                    st.markdown("##### 🎨 Favorite Colors")
+                    if "Colors" in person_photos:
+                        color_series = person_photos["Colors"].dropna().astype(str).str.split(";").explode().str.strip()
+                        color_series = color_series[color_series.ne("") & (color_series != "nan")]
+                        if not color_series.empty:
+                            for clr_name, clr_cnt in color_series.value_counts().head(5).items():
+                                st.markdown(f"• {clr_name.title()} ({clr_cnt}×)")
+                        else:
+                            st.caption("No color records.")
+            else:
+                st.info("No wardrobe records correlated to these photos.")
+        else:
+            st.info("Wardrobe profile will populate as photos are classified.")
+
+    with dialog_tabs[2]:
+        st.markdown("##### 👥 Merge Identity into Another Person")
+        st.caption("Consolidate duplicate face sightings or merge this profile into another existing identity.")
+
+        all_other_identities = [p for p in registry.get("identities", []) if p["face_id"] != face_id]
+        if not all_other_identities:
+            st.info("No other identities exist in the library to merge with.")
+        else:
+            name_map = {p["face_id"]: f"{p.get('display_name', p['face_id'])} ({p['face_id']})" for p in all_other_identities}
+            default_index = 0
+            if possible_match_id and possible_match_id in name_map:
+                default_index = list(name_map.keys()).index(possible_match_id)
+                st.warning(f"⚠️ System suggested duplicate candidate: **{name_map[possible_match_id]}**")
+
+            target_merge_id = st.selectbox(
+                "Merge this face into target identity:",
+                options=list(name_map.keys()),
+                index=default_index,
+                format_func=lambda fid: name_map[fid],
+                key=f"dialog_merge_select_{face_id}",
+            )
+
+            target_identity = next((p for p in all_other_identities if p["face_id"] == target_merge_id), None)
+            if target_identity:
+                comp_col1, comp_col2 = st.columns(2)
+                with comp_col1:
+                    st.caption(f"Current Profile: **{display_name}**")
+                    if crop_path.is_file():
+                        st.image(str(crop_path), width=160)
+                with comp_col2:
+                    st.caption(f"Target Profile: **{target_identity.get('display_name', target_merge_id)}**")
+                    target_crop = ROOT / target_identity.get("representative_image", "")
+                    if target_crop.is_file():
+                        st.image(str(target_crop), width=160)
+
+            if st.button(f"Confirm & Merge into '{target_identity.get('display_name', target_merge_id)}'", type="primary", key=f"dialog_merge_btn_{face_id}"):
+                face_identity.merge_face_identities(face_id, target_merge_id)
+                st.success("Successfully merged identities!")
+                st.rerun()
 
 
 
@@ -1198,23 +1453,55 @@ with st.sidebar:
         help="Confidence threshold for confirming Nike, Adidas, Puma, Under Armour, or New Balance. 0.55+ ensures unbranded clothing is not misclassified.",
     )
     st.metric("Database records", f"{saved_count:,}", border=True)
+    st.divider()
+
+    st.subheader("System Health & Logs", icon=":material/terminal:")
+    recent_errs = get_recent_errors(15)
+    if recent_errs:
+        st.markdown(f":red-badge[{len(recent_errs)} Logged Issues]")
+        with st.expander("Inspect Recent Error Logs", expanded=False):
+            st.code("".join(recent_errs), language="log")
+            if ERROR_LOG_PATH.is_file():
+                with open(ERROR_LOG_PATH, "rb") as log_file:
+                    st.download_button(
+                        "📥 Download Error Log",
+                        data=log_file.read(),
+                        file_name="photo_ai_errors.log",
+                        mime="text/plain",
+                        width="stretch",
+                        key="sidebar-download-errors",
+                    )
+    else:
+        st.caption("🟢 All systems operational · 0 errors logged")
+        if ERROR_LOG_PATH.is_file():
+            with open(ERROR_LOG_PATH, "rb") as log_file:
+                st.download_button(
+                    "📥 Download System Log",
+                    data=log_file.read(),
+                    file_name="photo_ai_errors.log",
+                    mime="text/plain",
+                    width="stretch",
+                    key="sidebar-download-system-log",
+                )
 
 # Feature toggle for legacy tabs (hidden by default)
 SHOW_EXPERIMENTAL_TABS = False
 
-# Primary 4 tabs with Analysis as the default landing view
-analysis_tab, results_tab, uploaded_tab, ai_analytics_tab = st.tabs(
+# Primary 5 tabs with Analysis as the default landing view
+analysis_tab, results_tab, uploaded_tab, face_tab, ai_analytics_tab = st.tabs(
     [
         ":material/insights: Analysis",
         ":material/table_chart: Results",
         ":material/cloud_upload: Upload & Classify",
+        ":material/face: Face Library",
         ":material/auto_awesome: AI Assistant",
     ]
 )
 
+
 with uploaded_tab:
     st.markdown("### :material/cloud_upload: Upload & Classify Photos")
-    st.caption("Upload images to detect people, classify wardrobe attributes (clothing types, colors, styles), and recognize sportswear logos.")
+    st.caption("Upload images to detect people, classify wardrobe attributes (clothing types, colors, styles), recognize sportswear logos, and detect face identities in one go.")
 
     st.markdown(
         f"""
@@ -1229,15 +1516,15 @@ with uploaded_tab:
             <div class="workflow-step-card">
                 <div class="workflow-step-num">2</div>
                 <div>
-                    <div class="workflow-step-title">Dual Vision AI</div>
-                    <div class="workflow-step-desc">Faster R-CNN localizes people; OpenCLIP zero-shot classifies wardrobe & logos.</div>
+                    <div class="workflow-step-title">Unified Multi-Modal AI</div>
+                    <div class="workflow-step-desc">Faster R-CNN localizes people, OpenCLIP classifies wardrobe & logos, and AuraFace tracks faces.</div>
                 </div>
             </div>
             <div class="workflow-step-card">
                 <div class="workflow-step-num">3</div>
                 <div>
                     <div class="workflow-step-title">Intelligence & Export</div>
-                    <div class="workflow-step-desc">Inspect visual badges, analyze market share charts, and export CSV reports.</div>
+                    <div class="workflow-step-desc">Inspect visual badges, analyze market share charts, view Face Library profiles, and export CSV reports.</div>
                 </div>
             </div>
         </div>
@@ -1255,7 +1542,12 @@ with uploaded_tab:
         if uploads:
             st.info(f"📁 **{len(uploads)}** photo(s) selected and ready for analysis.", icon=":material/image:")
             with st.container(horizontal=True, vertical_alignment="center"):
-                classify_uploads = st.button("✨ Run Wardrobe Classification", type="primary", icon=":material/play_arrow:")
+                classify_uploads = st.button(
+                    "✨ Classify Wardrobe & Detect Faces",
+                    type="primary",
+                    icon=":material/auto_awesome:",
+                    help="Run simultaneous wardrobe/brand classification and facial recognition on all uploaded photos with 1 click.",
+                )
                 force_uploads = st.checkbox("Force rerun (re-classify existing records)", key="force-upload-rerun")
         else:
             classify_uploads = False
@@ -1263,7 +1555,7 @@ with uploaded_tab:
 
     if TRAIN_DIR.is_dir():
         with st.expander("✨ Need an image? Try a sample photo from the gallery", expanded=not bool(uploads)):
-            st.caption("Select a sample image from the dataset to test person detection and brand classification immediately:")
+            st.caption("Select a sample image from the dataset to test person detection, brand classification, and face recognition immediately:")
             sample_candidates = sorted(list(TRAIN_DIR.glob("*.jpg")))[:4]
             if sample_candidates:
                 sample_cols = st.columns(len(sample_candidates))
@@ -1279,6 +1571,7 @@ with uploaded_tab:
                                     person_threshold,
                                     True,
                                     brand_threshold,
+                                    scan_faces=True,
                                 )
                         except (OSError, UnidentifiedImageError):
                             st.caption("Sample unavailable")
@@ -1290,7 +1583,9 @@ with uploaded_tab:
             person_threshold,
             force_uploads,
             brand_threshold,
+            scan_faces=True,
         )
+
 
 # Photos in train/ tab is hidden for now
 if SHOW_EXPERIMENTAL_TABS:
@@ -1330,12 +1625,8 @@ if SHOW_EXPERIMENTAL_TABS:
                         st.warning(f"Could not preview {Path(path).name}")
             st.caption(f"Selected on this page: {len(chosen)}")
             with st.container(horizontal=True, vertical_alignment="bottom"):
-                classify_train = st.button("Classify selected train photos", type="primary", disabled=not chosen)
+                classify_train = st.button("✨ Classify selected photos & match faces", type="primary", disabled=not chosen)
                 force_train = st.checkbox("Force rerun", key="force-train-rerun")
-                match_train_faces = st.button(
-                    "Detect and match faces", disabled=not chosen, key="match-train-faces"
-                )
-                force_train_faces = st.checkbox("Force rerun faces", key="force-train-faces-rerun")
             if classify_train:
                 run_classification(
                     [(Path(path).name, path) for path in chosen],
@@ -1343,9 +1634,8 @@ if SHOW_EXPERIMENTAL_TABS:
                     person_threshold,
                     force_train,
                     brand_threshold,
+                    scan_faces=True,
                 )
-            if match_train_faces:
-                run_face_matching([(Path(path).name, path) for path in chosen], force_train_faces)
 
 with analysis_tab:
     st.markdown("### :material/insights: Wardrobe & Brand Analytics Dashboard")
@@ -1356,7 +1646,9 @@ with analysis_tab:
     try:
         analysis_face_registry, analysis_face_occurrences, _ = face_identity.load_face_data()
     except (OSError, ValueError, json.JSONDecodeError) as exc:
+        log_error("Face tracking data could not be loaded in Analysis tab", exc)
         st.warning(f"Face tracking data is unavailable: {exc}")
+
     if analysis_results.empty:
         st.info("No saved classifications yet. Classify some photos first to populate this page.", icon=":material/info:")
     else:
@@ -1670,7 +1962,9 @@ with ai_analytics_tab:
     try:
         ai_registry, ai_occurrences, _ = face_identity.load_face_data()
     except (OSError, ValueError, json.JSONDecodeError) as exc:
+        log_error("Face tracking metrics could not be loaded in AI Assistant tab", exc)
         st.warning(f"Face tracking metrics are unavailable: {exc}")
+
 
     ai_attribute_columns = [column for column in ATTRIBUTES if column in ai_results.columns]
     ai_context = build_analytics_context(
@@ -1709,27 +2003,60 @@ with ai_analytics_tab:
 
     render_analytics_chat(ai_context, is_dark=is_dark)
 
-# Face library tab is hidden for now
-if SHOW_EXPERIMENTAL_TABS:
-    st.subheader("Face library")
+with face_tab:
+    st.markdown("### :material/face: Face Identity Library & Recognition")
     st.caption(
-        "Face IDs stay stable when display names change. Matching thresholds and model settings "
-        "are in `code/face_identity.py`."
+        "Persistent local face matching powered by AuraFace & SCRFD. Face IDs stay stable across photos, "
+        "allowing demographic tracking, repeat person sightings, and display name management."
     )
-    st.caption(
-        f"Current match threshold: {face_identity.FACE_MATCH_THRESHOLD_PERCENT:.1f}% scaled cosine score; "
-        f"review margin: {face_identity.FACE_AMBIGUOUS_MARGIN_PERCENT:.1f} points."
-    )
+
     try:
         face_registry, face_occurrences, _ = face_identity.load_face_data()
     except (OSError, ValueError, json.JSONDecodeError) as exc:
+        log_error("Could not read the face library in Face Library tab", exc)
         st.error(f"Could not read the face library: {exc}")
         face_registry, face_occurrences = {"identities": []}, pd.DataFrame()
 
     identities = face_registry.get("identities", [])
+    total_face_ids = len(identities)
+    photo_counts = (
+        face_occurrences.groupby("Face ID")["Photo ID"].nunique().to_dict()
+        if not face_occurrences.empty
+        else {}
+    )
+    repeat_people_count = sum(1 for cnt in photo_counts.values() if cnt > 1)
+    photos_scanned_count = face_occurrences["Photo ID"].nunique() if not face_occurrences.empty else 0
+    needs_review_count = sum(1 for person in identities if person.get("review_status") == "needs_review")
+
+    with st.container(horizontal=True):
+        st.metric("Total Face IDs", f"{total_face_ids:,}", delta=f"{repeat_people_count} repeat people", border=True)
+        st.metric("Photos Scanned", f"{photos_scanned_count:,}", border=True)
+        st.metric("Repeat Sightings", f"{repeat_people_count:,}", border=True)
+        st.metric("Review Needed", f"{needs_review_count:,}", border=True)
+
+    with st.expander("⚙️ Library Face Scanner & Batch Tools", expanded=False):
+        st.markdown("**Batch Scan All Saved Photos for Faces (AuraFace)**")
+        st.caption("Scan all photos in your saved database to detect faces, extract high-resolution crops, and map repeat individuals across photos.")
+        f_col1, f_col2 = st.columns([2, 1], vertical_alignment="center")
+        with f_col1:
+            st.write(f"Scanned faces are permanently saved in `{face_identity.FACE_DATA_DIR.name}/`. View matches and edit names below.")
+        with f_col2:
+            force_face_scan = st.checkbox("Force re-scan all library photos", key="force-library-face-scan")
+            if st.button("🔍 Scan All Library Photos", type="primary", icon=":material/face:", width="stretch", key="trigger-library-face-scan"):
+                all_photos = []
+                if not st.session_state["classification_results"].empty:
+                    unique_df = st.session_state["classification_results"][["Photo", "Source path"]].drop_duplicates()
+                    all_photos = [(str(row["Photo"]), str(row["Source path"])) for _, row in unique_df.iterrows() if Path(str(row["Source path"])).is_file()]
+                if all_photos:
+                    run_face_matching(all_photos, force_rerun=force_face_scan)
+                    st.rerun()
+                else:
+                    st.info("No library photos found to scan.")
+
     if not identities:
-        st.info("No faces are mapped yet. Select photos in Upload photos or Photos in train/, then choose Detect and match faces.")
-        st.caption(f"Registry and tracking files will be stored in `{face_identity.FACE_DATA_DIR.name}/`.")
+        st.info("No faces are mapped yet. Upload photos in 'Upload & Classify' using the unified classifier, or click 'Scan All Library Photos' above.", icon=":material/info:")
+        st.caption(f"Registry and tracking files are stored in `{face_identity.FACE_DATA_DIR.name}/`.")
+
     else:
         photo_counts = (
             face_occurrences.groupby("Face ID")["Photo ID"].nunique().to_dict()
@@ -1752,78 +2079,134 @@ if SHOW_EXPERIMENTAL_TABS:
                 "Photos seen": int(photo_counts.get(identity["face_id"], 0)),
             })
 
-        with st.form("face-library-name-form"):
-            edited_faces = st.data_editor(
-                pd.DataFrame(face_rows),
-                width="stretch",
-                hide_index=True,
-                disabled=["Face preview", "Face ID", "Review status", "Possible match ID", "Photos seen"],
-                column_config={
-                    "Face preview": st.column_config.ImageColumn("Face", width="small"),
-                    "Face ID": st.column_config.TextColumn("Stable face ID", width="large"),
-                    "Display name": st.column_config.TextColumn("Name", required=True),
-                    "Review status": st.column_config.TextColumn("Review status", width="small"),
-                    "Possible match ID": st.column_config.TextColumn("Possible match", width="large"),
-                    "Photos seen": st.column_config.NumberColumn("Photos", width="small", format="%d"),
-                },
-                key="face-library-editor",
-            )
-            save_names = st.form_submit_button("Save face names", type="primary")
-        if save_names:
-            names = dict(zip(edited_faces["Face ID"], edited_faces["Display name"].fillna("")))
-            changed = face_identity.rename_face_identities(names)
-            st.success(f"Saved {changed} name change(s) to `face_library_data/face_registry.json`.")
-            st.rerun()
-
         name_by_id = {
             identity["face_id"]: identity.get("display_name", identity["face_id"])
             for identity in identities
         }
-        selected_face_id = st.selectbox(
-            "Inspect a mapped face",
-            options=list(name_by_id),
-            format_func=lambda face_id: f"{name_by_id[face_id]} ({face_id})",
-            key="face-library-selection",
-        )
-        selected_identity = next(person for person in identities if person["face_id"] == selected_face_id)
-        selected_crop = ROOT / selected_identity.get("representative_image", "")
-        occurrence_rows = face_occurrences[face_occurrences["Face ID"] == selected_face_id].copy()
-        preview_col, info_col = st.columns([1, 2])
-        with preview_col:
-            if selected_crop.is_file():
-                st.image(str(selected_crop), caption=name_by_id[selected_face_id], width=240)
-        with info_col:
-            st.metric("Photos containing this face", int(photo_counts.get(selected_face_id, 0)))
-            st.write(f"First seen: {selected_identity.get('created_at_utc', 'unknown')}")
-            st.write(f"Last seen: {selected_identity.get('last_seen_utc', 'unknown')}")
-            st.write(f"Review status: {selected_identity.get('review_status', 'matched')}")
-        candidate_id = selected_identity.get("possible_match_id", "")
-        if selected_identity.get("review_status") == "needs_review" and candidate_id in name_by_id:
-            st.warning(
-                f"Possible duplicate of **{name_by_id[candidate_id]}** "
-                f"({candidate_id}). Compare the face previews above and in the table before merging."
+
+        # Search, Filter & View Mode Controls
+        ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([2, 1.6, 1.4], vertical_alignment="bottom")
+        with ctrl_col1:
+            face_search = st.text_input(
+                "Search faces",
+                placeholder="Search by person name or Face ID…",
+                key="face_search_box",
             )
-            if st.button(
-                f"Confirm same person and merge into {name_by_id[candidate_id]}",
-                key=f"merge-face-{selected_face_id}",
-                type="primary",
-            ):
-                face_identity.merge_face_identities(selected_face_id, candidate_id)
-                st.success("Merged appearances and face templates into the selected identity.")
-                st.rerun()
-        st.subheader("Photo appearances")
-        if occurrence_rows.empty:
-            st.info("No photo appearances are recorded for this face yet.")
+        with ctrl_col2:
+            status_filter = st.pills(
+                "Filter",
+                options=["All", "Repeat (>1)", "Needs Review", "Verified"],
+                default="All",
+                key="face_filter_pill",
+            )
+        with ctrl_col3:
+            face_view_mode = st.segmented_control(
+                "View",
+                options=[":material/grid_view: Cards", ":material/table_rows: Table"],
+                default=":material/grid_view: Cards",
+                key="face_view_mode_segmented",
+            )
+
+        # Apply search and filters
+        filtered_identities = identities[:]
+        if face_search.strip():
+            q = face_search.strip().lower()
+            filtered_identities = [
+                i for i in filtered_identities
+                if q in i.get("display_name", "").lower() or q in i["face_id"].lower()
+            ]
+        if status_filter == "Repeat (>1)":
+            filtered_identities = [
+                i for i in filtered_identities
+                if int(photo_counts.get(i["face_id"], 0)) > 1
+            ]
+        elif status_filter == "Needs Review":
+            filtered_identities = [
+                i for i in filtered_identities
+                if i.get("review_status") == "needs_review"
+            ]
+        elif status_filter == "Verified":
+            filtered_identities = [
+                i for i in filtered_identities
+                if i.get("review_status") == "matched"
+            ]
+
+        # Interactive Cards Grid View
+        if face_view_mode == ":material/grid_view: Cards":
+            if not filtered_identities:
+                st.info("No matching faces found for the current search/filter.")
+            else:
+                st.caption(f"Showing **{len(filtered_identities)}** profile card(s). Click **View Profile** on any face to inspect all photo sightings and details:")
+                card_cols = st.columns(4)
+                for idx, identity in enumerate(filtered_identities):
+                    f_id = identity["face_id"]
+                    disp_name = identity.get("display_name", f_id)
+                    num_photos = int(photo_counts.get(f_id, 0))
+                    c_path = ROOT / identity.get("representative_image", "")
+                    r_status = identity.get("review_status", "matched")
+
+                    with card_cols[idx % 4]:
+                        with st.container(border=True):
+                            if c_path.is_file():
+                                st.image(str(c_path), width="stretch")
+                            else:
+                                st.caption("No image crop")
+                            st.markdown(f"**{disp_name}**")
+
+                            b_col1, b_col2 = st.columns([1, 1], vertical_alignment="center")
+                            with b_col1:
+                                st.caption(f"📸 **{num_photos}** photo{'s' if num_photos != 1 else ''}")
+                            with b_col2:
+                                if r_status == "needs_review":
+                                    st.markdown(":orange-badge[Review]")
+                                elif r_status == "new":
+                                    st.markdown(":blue-badge[New]")
+                                else:
+                                    st.markdown(":green-badge[Verified]")
+
+                            if st.button("👤 View Profile", key=f"btn_face_card_{f_id}", type="primary", width="stretch"):
+                                show_face_profile_dialog(f_id)
+
+        # Table & Bulk Rename View
         else:
-            st.dataframe(
-                occurrence_rows.drop(columns=["Photo ID", "Photo path"], errors="ignore"),
-                width="stretch",
-                hide_index=True,
-            )
-        st.caption(
-            "Files: `face_library_data/face_registry.json` (editable names), "
-            "`face_embeddings.npz` (matching templates), and `face_occurrences.csv` (photo tracking)."
-        )
+            with st.container(border=True):
+                t_col1, t_col2 = st.columns([3, 1], vertical_alignment="center")
+                with t_col1:
+                    table_selected_id = st.selectbox(
+                        "Open profile dialog for selected person:",
+                        options=list(name_by_id.keys()),
+                        format_func=lambda fid: f"{name_by_id[fid]} ({fid})",
+                        key="table_inspect_face_select",
+                    )
+                with t_col2:
+                    if st.button("🔍 Open Face Profile", type="primary", width="stretch", key="btn_table_open_dialog"):
+                        show_face_profile_dialog(table_selected_id)
+
+            filtered_face_ids = {i["face_id"] for i in filtered_identities}
+            filtered_face_rows = [r for r in face_rows if r["Face ID"] in filtered_face_ids]
+
+            with st.form("face-library-name-form"):
+                edited_faces = st.data_editor(
+                    pd.DataFrame(filtered_face_rows),
+                    width="stretch",
+                    hide_index=True,
+                    disabled=["Face preview", "Face ID", "Review status", "Possible match ID", "Photos seen"],
+                    column_config={
+                        "Face preview": st.column_config.ImageColumn("Face", width="small"),
+                        "Face ID": st.column_config.TextColumn("Stable face ID", width="large"),
+                        "Display name": st.column_config.TextColumn("Name (Editable)", required=True),
+                        "Review status": st.column_config.TextColumn("Review status", width="small"),
+                        "Possible match ID": st.column_config.TextColumn("Possible match", width="large"),
+                        "Photos seen": st.column_config.NumberColumn("Photos", width="small", format="%d"),
+                    },
+                    key="face-library-editor",
+                )
+                save_names = st.form_submit_button("💾 Save Face Names", type="primary")
+            if save_names:
+                names = dict(zip(edited_faces["Face ID"], edited_faces["Display name"].fillna("")))
+                changed = face_identity.rename_face_identities(names)
+                st.success(f"Saved {changed} name change(s) to `face_library_data/face_registry.json`.")
+                st.rerun()
 
 with results_tab:
     st.markdown("### :material/table_chart: Classification Records & Previews")
