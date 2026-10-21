@@ -277,11 +277,14 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
                 st.toast("Conversation cleared", icon=":material/check_circle:")
                 st.rerun()
 
-    # 1. Render conversation history from session state
-    for message in messages:
-        role = message["role"]
-        with st.chat_message(role):
-            st.markdown(message["content"])
+    chat_container = st.container()
+
+    # 1. Render conversation history inside chat_container
+    with chat_container:
+        for message in messages:
+            role = message["role"]
+            with st.chat_message(role):
+                st.markdown(message["content"])
 
     # 2. Suggestion pills if conversation is empty
     active_prompt: str | None = None
@@ -296,33 +299,35 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
         if selected_pill:
             active_prompt = SUGGESTIONS[selected_pill]
 
-    # 3. Chat input
+    # 3. Chat input ALWAYS lives below chat_container
     user_prompt = st.chat_input("Ask about brand market share, garment combinations, face metrics…")
     if user_prompt:
         active_prompt = user_prompt
 
-    # 4. If there is a new prompt (from input or pill click), display user question ASAP and stream answer
+    # 4. If there is a new prompt (from input or pill click), render it INSIDE chat_container (above chat_input)
     if active_prompt:
         messages.append({"role": "user", "content": active_prompt})
-        with st.chat_message("user"):
-            st.markdown(active_prompt)
+        with chat_container:
+            with st.chat_message("user"):
+                st.markdown(active_prompt)
 
-        current_context = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
-        provider_messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nCurrent analytics JSON:\n{current_context}"}]
-        provider_messages.extend(messages[-4:])
-        with st.chat_message("assistant"):
-            try:
-                response = st.write_stream(provider.stream_chat(provider_messages))
-            except Exception as exc:
-                log_error("Analytics Assistant stream_chat failed", exc)
-                err_str = str(exc).lower()
-                if "rate_limit" in err_str or "413" in err_str or "429" in err_str or "tokens per minute" in err_str:
-                    response = "⚠️ **Rate limit reached on Groq free tier.** Please wait 10–15 seconds for your token quota to reset, then ask again."
-                else:
-                    response = "I couldn't reach the analytics provider. Check your Groq API key, model setting, and network connection, then try again."
-                st.markdown(response)
-        if response:
-            messages.append({"role": "assistant", "content": str(response)})
+            current_context = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
+            provider_messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nCurrent analytics JSON:\n{current_context}"}]
+            provider_messages.extend(messages[-4:])
+            with st.chat_message("assistant"):
+                try:
+                    response = st.write_stream(provider.stream_chat(provider_messages))
+                except Exception as exc:
+                    log_error("Analytics Assistant stream_chat failed", exc)
+                    err_str = str(exc).lower()
+                    if "rate_limit" in err_str or "413" in err_str or "429" in err_str or "tokens per minute" in err_str:
+                        response = "⚠️ **Rate limit reached on Groq free tier.** Please wait 10–15 seconds for your token quota to reset, then ask again."
+                    else:
+                        response = "I couldn't reach the analytics provider. Check your Groq API key, model setting, and network connection, then try again."
+                    st.markdown(response)
+            if response:
+                messages.append({"role": "assistant", "content": str(response)})
+
 
 
 
