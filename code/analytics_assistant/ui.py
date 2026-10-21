@@ -312,8 +312,10 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
                 st.markdown(active_prompt)
 
             current_context = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
-            provider_messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nCurrent analytics JSON:\n{current_context}"}]
-            provider_messages.extend(messages[-4:])
+            provider_messages = [
+                {"role": "system", "content": f"{SYSTEM_PROMPT}\n\nCurrent analytics JSON:\n{current_context}"},
+                {"role": "user", "content": active_prompt},
+            ]
             with st.chat_message("assistant"):
                 try:
                     response = st.write_stream(provider.stream_chat(provider_messages))
