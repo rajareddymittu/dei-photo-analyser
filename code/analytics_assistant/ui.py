@@ -277,7 +277,14 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
                 st.toast("Conversation cleared", icon=":material/check_circle:")
                 st.rerun()
 
-    # Suggestion pills if conversation is empty
+    # 1. Render conversation history from session state
+    for message in messages:
+        role = message["role"]
+        with st.chat_message(role):
+            st.markdown(message["content"])
+
+    # 2. Suggestion pills if conversation is empty
+    active_prompt: str | None = None
     if not messages:
         st.caption("✨ **Quick questions you can ask right now:**")
         selected_pill = st.pills(
@@ -287,18 +294,19 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
             key="analytics_suggestion_pills",
         )
         if selected_pill:
-            selected_prompt = SUGGESTIONS[selected_pill]
-            st.session_state["analytics_chat_messages"].append({"role": "user", "content": selected_prompt})
-            st.rerun()
+            active_prompt = SUGGESTIONS[selected_pill]
 
-    # Render conversation history (relying on default avatars for accurate data-testid hooks)
-    for message in messages:
-        role = message["role"]
-        with st.chat_message(role):
-            st.markdown(message["content"])
+    # 3. Chat input
+    user_prompt = st.chat_input("Ask about brand market share, garment combinations, face metrics…")
+    if user_prompt:
+        active_prompt = user_prompt
 
-    # If the last message was a user message waiting for an assistant response (e.g. from pill click)
-    if messages and messages[-1]["role"] == "user":
+    # 4. If there is a new prompt (from input or pill click), display user question ASAP and stream answer
+    if active_prompt:
+        messages.append({"role": "user", "content": active_prompt})
+        with st.chat_message("user"):
+            st.markdown(active_prompt)
+
         current_context = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
         provider_messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nCurrent analytics JSON:\n{current_context}"}]
         provider_messages.extend(messages[-4:])
@@ -315,13 +323,7 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
                 st.markdown(response)
         if response:
             messages.append({"role": "assistant", "content": str(response)})
-            st.rerun()
 
-    # 3. Chat input always docked at the bottom below all conversation history
-    prompt = st.chat_input("Ask about brand market share, garment combinations, face metrics…")
-    if prompt:
-        messages.append({"role": "user", "content": prompt})
-        st.rerun()
 
 
 
