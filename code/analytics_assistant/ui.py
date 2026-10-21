@@ -100,18 +100,8 @@ def get_chat_css(is_dark: bool = False) -> str:
     /* ========================================================
        MODERN AI CHAT DOCKED BOTTOM INPUT WINDOW
        ======================================================== */
-    div[data-testid="stBottom"],
-    .stChatFloatingInputContainer {{
-        position: sticky !important;
-        bottom: 0 !important;
-        z-index: 100 !important;
+    div[data-testid="stBottom"] {{
         background: {bottom_bg} !important;
-        backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important;
-        padding-top: 16px !important;
-        padding-bottom: 24px !important;
-        margin-top: 20px !important;
-        border-top: 1px solid {banner_border} !important;
     }}
 
     div[data-testid="stChatInput"] {{
@@ -151,15 +141,13 @@ def get_chat_css(is_dark: bool = False) -> str:
         box-shadow: 0 4px 14px rgba(79, 70, 229, 0.5) !important;
     }}
 
-    /* Message list container padding so bottom message is never obscured */
+    /* Message list container padding */
     div[data-testid="stChatMessage"] {{
-        margin-bottom: 16px !important;
+        margin-bottom: 14px !important;
     }}
 
-
-
     /* ========================================================
-       USER CHAT BUBBLE - RIGHT ALIGNED
+       USER CHAT BUBBLE - RIGHT ALIGNED & FIT CONTENT
        ======================================================== */
     div[data-testid="stChatMessage"]:has([aria-label*="user" i]),
     div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {{
@@ -169,26 +157,28 @@ def get_chat_css(is_dark: bool = False) -> str:
         justify-content: flex-start !important;
         margin-left: auto !important;
         margin-right: 0 !important;
-        max-width: 78% !important;
-        padding: 6px 0 !important;
-        gap: 10px !important;
+        width: fit-content !important;
+        max-width: 75% !important;
+        padding: 4px 0 !important;
+        gap: 8px !important;
     }}
 
     div[data-testid="stChatMessage"]:has([aria-label*="user" i]) [data-testid="stChatMessageContent"],
     div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {{
         background: {user_bg} !important;
         color: #FFFFFF !important;
-        border-radius: 20px 20px 4px 20px !important;
-        padding: 12px 18px !important;
+        border-radius: 18px 18px 4px 18px !important;
+        padding: 10px 16px !important;
         box-shadow: {user_shadow} !important;
         text-align: left !important;
         border: none !important;
+        width: fit-content !important;
+        max-width: fit-content !important;
+        flex-grow: 0 !important;
     }}
 
-    div[data-testid="stChatMessage"]:has([aria-label*="user" i]) [data-testid="stChatMessageContent"] p,
-    div[data-testid="stChatMessage"]:has([aria-label*="user" i]) [data-testid="stChatMessageContent"] span,
-    div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] p,
-    div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] span {{
+    div[data-testid="stChatMessage"]:has([aria-label*="user" i]) [data-testid="stChatMessageContent"] *,
+    div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] * {{
         color: #FFFFFF !important;
         font-size: 0.95rem !important;
         line-height: 1.5 !important;
@@ -200,10 +190,11 @@ def get_chat_css(is_dark: bool = False) -> str:
         background: #4F46E5 !important;
         border-radius: 50% !important;
         box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3) !important;
+        flex-shrink: 0 !important;
     }}
 
     /* ========================================================
-       ASSISTANT CHAT BUBBLE - LEFT ALIGNED
+       ASSISTANT CHAT BUBBLE - LEFT ALIGNED & HIGH CONTRAST
        ======================================================== */
     div[data-testid="stChatMessage"]:has([aria-label*="assistant" i]),
     div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {{
@@ -213,8 +204,9 @@ def get_chat_css(is_dark: bool = False) -> str:
         justify-content: flex-start !important;
         margin-right: auto !important;
         margin-left: 0 !important;
-        max-width: 88% !important;
-        padding: 6px 0 !important;
+        width: fit-content !important;
+        max-width: 85% !important;
+        padding: 4px 0 !important;
         gap: 12px !important;
     }}
 
@@ -222,20 +214,20 @@ def get_chat_css(is_dark: bool = False) -> str:
     div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {{
         background: {assistant_bg} !important;
         border: {assistant_border} !important;
-        border-radius: 20px 20px 20px 4px !important;
-        padding: 16px 22px !important;
+        border-radius: 18px 18px 18px 4px !important;
+        padding: 14px 20px !important;
         box-shadow: {assistant_shadow} !important;
         color: {assistant_text} !important;
         text-align: left !important;
+        width: fit-content !important;
+        max-width: fit-content !important;
+        flex-grow: 0 !important;
     }}
 
-    div[data-testid="stChatMessage"]:has([aria-label*="assistant" i]) [data-testid="stChatMessageContent"] p,
-    div[data-testid="stChatMessage"]:has([aria-label*="assistant" i]) [data-testid="stChatMessageContent"] span,
-    div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] p,
-    div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] span,
-    div[data-testid="stChatMessage"]:has([aria-label*="assistant" i]) [data-testid="stChatMessageContent"] li,
-    div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] li {{
+    div[data-testid="stChatMessage"]:has([aria-label*="assistant" i]) [data-testid="stChatMessageContent"] *,
+    div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] * {{
         color: {assistant_text} !important;
+        opacity: 1 !important;
     }}
 
     div[data-testid="stChatMessage"]:has([aria-label*="assistant" i]) [data-testid="stChatMessageAvatarAssistant"],
@@ -243,6 +235,7 @@ def get_chat_css(is_dark: bool = False) -> str:
         background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
         border-radius: 50% !important;
         box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25) !important;
+        flex-shrink: 0 !important;
     }}
     </style>
     """
@@ -321,26 +314,10 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
             messages.append({"role": "assistant", "content": str(response)})
             st.rerun()
 
-    # Input bar
+    # 3. Chat input always docked at the bottom below all conversation history
     prompt = st.chat_input("Ask about brand market share, garment combinations, face metrics…", key="analytics-chat-input")
-    if not prompt:
-        return
+    if prompt:
+        messages.append({"role": "user", "content": prompt})
+        st.rerun()
 
-    messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    current_context = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
-    provider_messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nCurrent analytics JSON:\n{current_context}"}]
-    provider_messages.extend(messages[-8:])
-    with st.chat_message("assistant"):
-        try:
-            response = st.write_stream(provider.stream_chat(provider_messages))
-        except Exception as exc:
-            log_error("Analytics Assistant stream_chat failed", exc)
-            response = "I couldn't reach the analytics provider. Check your Groq API key, model setting, and network connection, then try again."
-            st.error(response)
-            st.caption(f"Provider error: {type(exc).__name__}")
-    if response:
-        messages.append({"role": "assistant", "content": str(response)})
 
