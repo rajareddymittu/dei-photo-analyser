@@ -147,16 +147,19 @@ def build_analytics_context(
             lambda labels: bool(selected.intersection(item.strip() for item in labels))
         )
         filtered = valid[keep].copy()
-    return {
+    context: dict[str, Any] = {
         "scope_note": "Counts are computed from saved classification rows. Tag appearances count labels on person rows, not unique garments or unique people.",
         "saved_classification_rows": int(len(results)),
         "failed_classification_rows": error_summary,
         "all_results": summarize_classifications(valid, attribute_columns),
         "brand_analytics": summarize_brands(valid),
-        "current_analysis_filter": {
-            "attribute": filter_attribute or "All results",
-            "selected_labels": selected_labels or [],
-            "summary": summarize_classifications(filtered, attribute_columns),
-        },
         "face_tracking": summarize_faces(face_registry, face_occurrences),
     }
+    if filter_attribute and filter_attribute != "All results" and selected_labels:
+        context["current_analysis_filter"] = {
+            "attribute": filter_attribute,
+            "selected_labels": selected_labels,
+            "summary": summarize_classifications(filtered, attribute_columns),
+        }
+    return context
+

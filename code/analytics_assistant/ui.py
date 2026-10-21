@@ -301,23 +301,27 @@ def render_analytics_chat(context: dict, is_dark: bool = False) -> None:
     if messages and messages[-1]["role"] == "user":
         current_context = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
         provider_messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nCurrent analytics JSON:\n{current_context}"}]
-        provider_messages.extend(messages[-8:])
+        provider_messages.extend(messages[-4:])
         with st.chat_message("assistant"):
             try:
                 response = st.write_stream(provider.stream_chat(provider_messages))
             except Exception as exc:
                 log_error("Analytics Assistant stream_chat failed", exc)
-                response = "I couldn't reach the analytics provider. Check your Groq API key, model setting, and network connection, then try again."
-                st.error(response)
-                st.caption(f"Provider error: {type(exc).__name__}")
+                err_str = str(exc).lower()
+                if "rate_limit" in err_str or "413" in err_str or "429" in err_str or "tokens per minute" in err_str:
+                    response = "⚠️ **Rate limit reached on Groq free tier.** Please wait 10–15 seconds for your token quota to reset, then ask again."
+                else:
+                    response = "I couldn't reach the analytics provider. Check your Groq API key, model setting, and network connection, then try again."
+                st.markdown(response)
         if response:
             messages.append({"role": "assistant", "content": str(response)})
             st.rerun()
 
     # 3. Chat input always docked at the bottom below all conversation history
-    prompt = st.chat_input("Ask about brand market share, garment combinations, face metrics…", key="analytics-chat-input")
+    prompt = st.chat_input("Ask about brand market share, garment combinations, face metrics…")
     if prompt:
         messages.append({"role": "user", "content": prompt})
         st.rerun()
+
 
 
