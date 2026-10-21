@@ -360,7 +360,7 @@ def summarize_brands(frame: pd.DataFrame) -> dict[str, Any]:
         co_occurrences[target] = {
             "detections": target_counts[target],
             "unique_photos": len(matching_photos),
-            "top_garments": dict(brand_garments.most_common(5)),
+            "top_garments": dict(brand_garments.most_common(8)),
             "top_colors": dict(brand_colors.most_common(5)),
             "top_styles": dict(brand_styles.most_common(5)),
         }
