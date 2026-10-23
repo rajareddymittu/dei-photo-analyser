@@ -914,6 +914,47 @@ def show_face_profile_dialog(face_id: str) -> None:
                 st.rerun()
 
 
+def clear_all_results(clear_faces: bool = False, clear_uploads: bool = False) -> None:
+    """Clear all saved classification results, cache, and optional face/upload data."""
+    empty_df = pd.DataFrame(columns=RESULT_COLUMNS)
+    RESULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    empty_df.to_csv(RESULTS_FILE, index=False)
+    st.session_state["classification_results"] = empty_df
+    st.session_state["pending_photo_preview_row"] = None
+    if "analytics_chat_messages" in st.session_state:
+        st.session_state["analytics_chat_messages"] = []
+    load_saved_results.clear()
+    thumbnail_data_uri.clear()
+    if clear_faces:
+        face_identity.clear_face_data()
+    if clear_uploads and UPLOADED_IMAGE_DIR.exists():
+        for f in UPLOADED_IMAGE_DIR.glob("*"):
+            if f.is_file():
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
+
+
+@st.dialog("Delete all results", width="small")
+def confirm_delete_dialog(total_records: int) -> None:
+    st.markdown(
+        f"Are you sure you want to permanently delete all **{total_records:,}** classification records? "
+        "This will reset all dashboard metrics, charts, and brand statistics."
+    )
+    clear_faces = st.checkbox("Also reset Face Library & identity occurrences", value=False)
+    clear_uploads = st.checkbox("Also remove cached uploaded photos", value=False)
+    st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Cancel", width="stretch"):
+            st.rerun()
+    with col2:
+        if st.button("Yes, delete all", type="primary", icon=":material/delete_forever:", width="stretch"):
+            clear_all_results(clear_faces=clear_faces, clear_uploads=clear_uploads)
+            st.toast("All results have been deleted.", icon=":material/delete_forever:")
+            st.rerun()
+
 
 def capture_photo_click() -> None:
     """Save the clicked table row for this rerun so its photo dialog can open."""
@@ -1453,6 +1494,16 @@ with st.sidebar:
         help="Confidence threshold for confirming Nike, Adidas, Puma, Under Armour, or New Balance. 0.55+ ensures unbranded clothing is not misclassified.",
     )
     st.metric("Database records", f"{saved_count:,}", border=True)
+    if st.button(
+        "Delete all results",
+        icon=":material/delete_forever:",
+        type="secondary",
+        width="stretch",
+        disabled=saved_count == 0,
+        help="Permanently delete all classification records from the database",
+        key="sidebar-delete-all-results",
+    ):
+        confirm_delete_dialog(saved_count)
     st.divider()
 
     st.subheader("System Health & Logs", icon=":material/terminal:")

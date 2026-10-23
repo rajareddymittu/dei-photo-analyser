@@ -441,3 +441,19 @@ def merge_face_identities(source_face_id: str, target_face_id: str) -> None:
             identity["possible_match_id"] = target_face_id
     registry["identities"] = [person for person in identities if person["face_id"] != source_face_id]
     _save_face_data(registry, occurrences, templates)
+
+
+def clear_face_data() -> None:
+    """Clear all face registry, occurrences, embeddings, and face crop images."""
+    registry = _empty_registry()
+    occurrences = pd.DataFrame(columns=OCCURRENCE_COLUMNS)
+    templates: dict[str, np.ndarray] = {}
+    _save_face_data(registry, occurrences, templates)
+    if FACE_CROPS_DIR.exists():
+        for file in FACE_CROPS_DIR.glob("*"):
+            if file.is_file():
+                try:
+                    file.unlink()
+                except OSError:
+                    pass
+
