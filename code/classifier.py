@@ -252,11 +252,17 @@ def load_saved_results() -> pd.DataFrame:
         return pd.DataFrame(columns=RESULT_COLUMNS)
     try:
         saved = pd.read_csv(RESULTS_FILE, dtype=str, keep_default_na=False)
+        if saved.empty:
+            return pd.DataFrame(columns=RESULT_COLUMNS)
         if "Wardrobe Breakdown" not in saved.columns or (saved["Wardrobe Breakdown"] == "").all():
-            parts_list = [extract_wardrobe_parts(ct) for ct in saved.get("Clothing types", [])]
-            parts_df = pd.DataFrame(parts_list)
-            for part_col in WARDROBE_PART_COLUMNS:
-                saved[part_col] = parts_df[part_col]
+            if "Clothing types" in saved.columns and len(saved) > 0:
+                parts_list = [extract_wardrobe_parts(ct) for ct in saved["Clothing types"]]
+                parts_df = pd.DataFrame(parts_list, columns=WARDROBE_PART_COLUMNS)
+                for part_col in WARDROBE_PART_COLUMNS:
+                    saved[part_col] = parts_df[part_col].fillna("-")
+            else:
+                for part_col in WARDROBE_PART_COLUMNS:
+                    saved[part_col] = "-"
         for column in RESULT_COLUMNS:
             if column not in saved:
                 saved[column] = ""
