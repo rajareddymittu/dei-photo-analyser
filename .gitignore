@@ -17,8 +17,10 @@ models/
 
 # Datasets / generated data
 classification_images/
-datasetdownload/
 classification_results.csv
+datasetdownload/*
+!datasetdownload/*.py
+!datasetdownload/*.md
 train/
 face_library_data/
 
