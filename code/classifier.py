@@ -31,6 +31,9 @@ from error_logger import logger, log_error, log_warning, get_recent_errors, ERRO
 from analytics_assistant import (
     ALL_BRAND_LABELS,
     BRAND_COLORS,
+    LIFESTYLE_BRANDS,
+    LUXURY_BRANDS,
+    SPORTSWEAR_BRANDS,
     TARGET_BRANDS,
     build_analytics_context,
     predict_brands,
@@ -827,7 +830,7 @@ def show_face_profile_dialog(face_id: str) -> None:
                 w_col1, w_col2, w_col3 = st.columns(3)
 
                 with w_col1:
-                    st.markdown("##### 🏷️ Sportswear Brands")
+                    st.markdown("##### 🏷️ Detected Brands")
                     brand_col = "Brands" if "Brands" in person_photos else ("Brand" if "Brand" in person_photos else None)
                     if brand_col:
                         brand_series = person_photos[brand_col].dropna().astype(str).str.split(";").explode().str.strip()
@@ -1450,7 +1453,7 @@ st.markdown(
         <div>
             <div class="hero-chip"><span class="hero-dot"></span> Active Zero-Shot CV Engine</div>
             <h1 class="hero-banner-title">👔 Wardrobe & Brand Intelligence</h1>
-            <p class="hero-banner-desc">Zero-shot clothing classification, sportswear brand recognition (Nike, Puma, Adidas, Under Armour, New Balance), and AI analytics.</p>
+            <p class="hero-banner-desc">Zero-shot clothing classification, luxury & sportswear brand recognition (Gucci, Louis Vuitton, Prada, Chanel, Dior, Nike, Adidas, Zara, etc.), and AI analytics.</p>
         </div>
         <div class="hero-stat-badge">
             <div class="hero-stat-num">{saved_count:,}</div>
@@ -1466,20 +1469,29 @@ with st.sidebar:
     st.toggle("🌙 Dark Mode", value=is_dark, key="is_dark_mode")
     st.divider()
 
-    st.markdown("### :material/loyalty: Target Brands")
-    st.caption("Active zero-shot & probe recognition:")
-    for b in TARGET_BRANDS:
-        color = BRAND_COLORS.get(b, "#4F46E5")
-        b_count = brand_counts_map.get(b, 0)
-        st.markdown(
-            f"<div class='brand-pill-card'>"
-            f"<div style='display:flex; align-items:center; gap:8px; font-size:0.9rem;'>"
-            f"<span style='display:inline-block; width:10px; height:10px; border-radius:50%; background-color:{color}; box-shadow:0 0 6px {color};'></span>"
-            f"<b>{b}</b></div>"
-            f"<span style='font-size:0.75rem; font-weight:700; color:{color}; background:{color}18; border:1px solid {color}33; padding:2px 8px; border-radius:10px;'>{b_count:,} items</span>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
+    st.markdown("### :material/loyalty: Target Brands (15)")
+    st.caption("Active zero-shot & probe recognition across 3 tiers:")
+
+    brand_groups = [
+        ("✨ Luxury Houses", LUXURY_BRANDS),
+        ("🏃 Sportswear", SPORTSWEAR_BRANDS),
+        ("🧥 Lifestyle & Heritage", LIFESTYLE_BRANDS),
+    ]
+
+    for group_title, b_list in brand_groups:
+        st.markdown(f"<div style='font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:rgba(148,163,184,0.9); margin:8px 0 4px;'>{group_title}</div>", unsafe_allow_html=True)
+        for b in b_list:
+            color = BRAND_COLORS.get(b, "#4F46E5")
+            b_count = brand_counts_map.get(b, 0)
+            st.markdown(
+                f"<div class='brand-pill-card'>"
+                f"<div style='display:flex; align-items:center; gap:8px; font-size:0.85rem;'>"
+                f"<span style='display:inline-block; width:9px; height:9px; border-radius:50%; background-color:{color}; box-shadow:0 0 5px {color};'></span>"
+                f"<b>{b}</b></div>"
+                f"<span style='font-size:0.70rem; font-weight:700; color:{color}; background:{color}18; border:1px solid {color}33; padding:1px 6px; border-radius:8px;'>{b_count:,}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
     st.divider()
 
     st.subheader("Model settings", icon=":material/tune:")
@@ -1491,7 +1503,7 @@ with st.sidebar:
         max_value=0.85,
         value=0.55,
         step=0.05,
-        help="Confidence threshold for confirming Nike, Adidas, Puma, Under Armour, or New Balance. 0.55+ ensures unbranded clothing is not misclassified.",
+        help="Confidence threshold for confirming brand identity (Gucci, Chanel, Nike, Adidas, etc.). 0.55+ ensures unbranded clothing is not misclassified.",
     )
     st.metric("Database records", f"{saved_count:,}", border=True)
     if st.button(
@@ -1793,7 +1805,7 @@ with analysis_tab:
             st.divider()
             st.subheader("Brand analytics", icon=":material/loyalty:")
             st.caption(
-                "Zero-shot brand detection across target sportswear brands: Nike, Puma, Adidas, Under Armour, New Balance."
+                "Zero-shot brand detection across 15 target brands spanning luxury, sportswear, and lifestyle fashion."
             )
 
             brand_stats = summarize_brands(valid_results)
@@ -2266,7 +2278,7 @@ with results_tab:
         if results.empty:
             st.info("No saved classifications yet. Classify photos in 'Upload & Classify' first to populate this table.", icon=":material/info:")
         else:
-            pill_options = ["All", "Nike", "Adidas", "New Balance", "Puma", "Under Armour", "Other / unbranded"]
+            pill_options = ["All", *TARGET_BRANDS, "Other / unbranded"]
             selected_brand_pill = st.pills(
                 "Brand Filter",
                 pill_options,

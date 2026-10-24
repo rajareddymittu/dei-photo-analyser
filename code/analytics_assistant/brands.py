@@ -12,12 +12,34 @@ import pandas as pd
 import torch
 from PIL import Image
 
-TARGET_BRANDS: list[str] = [
+LUXURY_BRANDS: list[str] = [
+    "Gucci",
+    "Louis Vuitton",
+    "Prada",
+    "Chanel",
+    "Dior",
+]
+
+SPORTSWEAR_BRANDS: list[str] = [
     "Nike",
     "Puma",
     "Adidas",
     "Under Armour",
     "New Balance",
+]
+
+LIFESTYLE_BRANDS: list[str] = [
+    "Zara",
+    "Levi's",
+    "The North Face",
+    "Calvin Klein",
+    "Ralph Lauren",
+]
+
+TARGET_BRANDS: list[str] = [
+    *LUXURY_BRANDS,
+    *SPORTSWEAR_BRANDS,
+    *LIFESTYLE_BRANDS,
 ]
 
 ALL_BRAND_LABELS: list[str] = [
@@ -26,11 +48,25 @@ ALL_BRAND_LABELS: list[str] = [
 ]
 
 BRAND_COLORS: dict[str, str] = {
-    "Nike": "#E74C3C",
-    "Puma": "#E67E22",
-    "Adidas": "#2980B9",
-    "Under Armour": "#8E44AD",
-    "New Balance": "#27AE60",
+    # Luxury
+    "Gucci": "#10B981",          # Emerald Green
+    "Louis Vuitton": "#B45309",  # Monogram Cognac / Amber
+    "Prada": "#334155",          # Saffiano Slate Charcoal
+    "Chanel": "#EC4899",         # Parisian Pink
+    "Dior": "#6366F1",           # Dior Blue / Violet
+    # Sportswear
+    "Nike": "#E74C3C",           # Crimson Red
+    "Puma": "#E67E22",           # Amber Orange
+    "Adidas": "#2980B9",         # Athletic Cyan / Blue
+    "Under Armour": "#8E44AD",   # Royal Violet Purple
+    "New Balance": "#27AE60",    # Forest Emerald Green
+    # Lifestyle & Others
+    "Zara": "#0EA5E9",           # Sky Cyan
+    "Levi's": "#DC2626",         # Denim Red Tab
+    "The North Face": "#F59E0B", # Summit Yellow
+    "Calvin Klein": "#64748B",   # Slate Gray
+    "Ralph Lauren": "#1D4ED8",   # Classic Navy
+    # Other / Unbranded
     "Other / unbranded": "#95A5A6",
 }
 
@@ -38,16 +74,24 @@ WEIGHTS_PATH = Path(__file__).resolve().parent / "brand_detector_weights.pt"
 
 
 class BrandClassifier:
-    """Trained multi-head brand classifier ensemble for person and logo crops."""
+    """Multi-head brand classifier ensemble for person and logo crops across all target brands."""
 
-    def __init__(self, checkpoint: dict[str, Any], device: torch.device) -> None:
+    def __init__(self, checkpoint: dict[str, Any] | None, device: torch.device) -> None:
         self.device = device
-        self.classes: list[str] = checkpoint["classes"]
-        self.target_brands: list[str] = checkpoint["target_brands"]
-        self.multiclass_weight = checkpoint["multiclass_weight"].to(device)
-        self.multiclass_bias = checkpoint["multiclass_bias"].to(device)
-        self.binary_weight = checkpoint["binary_weight"].to(device)
-        self.binary_bias = checkpoint["binary_bias"].to(device)
+        self.all_classes: list[str] = ALL_BRAND_LABELS
+        self.target_brands: list[str] = TARGET_BRANDS
+        if checkpoint:
+            self.probe_classes: list[str] = checkpoint.get("classes", [])
+            self.multiclass_weight = checkpoint.get("multiclass_weight")
+            if self.multiclass_weight is not None:
+                self.multiclass_weight = self.multiclass_weight.to(device)
+            self.multiclass_bias = checkpoint.get("multiclass_bias")
+            if self.multiclass_bias is not None:
+                self.multiclass_bias = self.multiclass_bias.to(device)
+        else:
+            self.probe_classes = []
+            self.multiclass_weight = None
+            self.multiclass_bias = None
 
     def predict_crops(
         self,
@@ -62,51 +106,58 @@ class BrandClassifier:
             features: Tensor of shape (total_crops, 512), normalized CLIP features.
             crop_counts: Number of crops per person (e.g. [3, 3, 3]).
             threshold: Confidence threshold for confirming a target brand.
-            text_features: Optional Tensor of shape (6, 512) with zero-shot text prototypes.
+            text_features: Optional Tensor of shape (len(ALL_BRAND_LABELS), 512) with zero-shot text prototypes.
 
         Returns:
             List of predicted brand strings per person.
         """
-        with torch.no_grad():
-            multi_logits = features @ self.multiclass_weight.T + self.multiclass_bias
-            probe_probs = torch.softmax(multi_logits, dim=-1)
+        all_labels = self.all_classes
+        all_targets = self.target_brands
+        unbranded_idx = all_labels.index("Other / unbranded")
 
+        with torch.no_grad():
             if text_features is not None:
                 zs_sims = features @ text_features.T
-                zs_probs = torch.softmax(zs_sims * 25.0, dim=-1)
-                # Geometric ensemble of probe logits and zero-shot priors
-                combined_probs = (probe_probs * zs_probs) ** 0.5
-                combined_probs = combined_probs / combined_probs.sum(dim=-1, keepdim=True)
+                combined_probs = torch.softmax(zs_sims * 25.0, dim=-1)
             else:
-                combined_probs = probe_probs
+                combined_probs = None
+
+            # Blend probe probabilities for legacy classes if trained weights exist
+            if self.multiclass_weight is not None and combined_probs is not None and self.probe_classes:
+                multi_logits = features @ self.multiclass_weight.T + self.multiclass_bias
+                probe_probs = torch.softmax(multi_logits, dim=-1)
+                for legacy_brand in self.probe_classes:
+                    if legacy_brand in all_labels and legacy_brand in self.probe_classes:
+                        l_idx = all_labels.index(legacy_brand)
+                        p_idx = self.probe_classes.index(legacy_brand)
+                        combined_probs[:, l_idx] = (combined_probs[:, l_idx] * probe_probs[:, p_idx]) ** 0.5
+                combined_probs = combined_probs / combined_probs.sum(dim=-1, keepdim=True)
 
         predictions: list[str] = []
         offset = 0
 
-        unbranded_idx = self.classes.index("Other / unbranded") if "Other / unbranded" in self.classes else 5
-
         for count in crop_counts:
-            person_probs = combined_probs[offset : offset + count]
-            full_unbranded = person_probs[0, unbranded_idx].item()
+            person_probs = combined_probs[offset : offset + count] if combined_probs is not None else None
             offset += count
 
             best_brand = "Other / unbranded"
             best_confidence = 0.0
+
+            if person_probs is None:
+                predictions.append(best_brand)
+                continue
+
+            full_unbranded = person_probs[0, unbranded_idx].item()
 
             # Evaluate crops: 0=Full body, 1=Upper torso/chest, 2=Footwear
             for c_idx in range(count):
                 probs = person_probs[c_idx]
                 c_unbranded = probs[unbranded_idx].item()
 
-                # Get top candidate among target brands
-                target_probs = [probs[self.classes.index(b)].item() for b in self.target_brands]
+                target_probs = [probs[all_labels.index(b)].item() for b in all_targets]
                 max_target_prob = max(target_probs)
-                top_class = self.target_brands[target_probs.index(max_target_prob)]
+                top_class = all_targets[target_probs.index(max_target_prob)]
 
-                # Calibrated criteria:
-                # 1. Candidate brand probability must exceed unbranded baseline with margin
-                # 2. Candidate brand must meet sensitivity threshold
-                # 3. Footwear crops require extra confidence and cannot overturn a full-body unbranded outfit
                 min_threshold = threshold + 0.15 if c_idx == 2 else threshold
                 if c_idx == 2 and full_unbranded > 0.65:
                     continue
@@ -124,8 +175,8 @@ class BrandClassifier:
 _LOADED_CLASSIFIER: BrandClassifier | None = None
 
 
-def load_brand_classifier(device: torch.device) -> BrandClassifier | None:
-    """Load the trained brand detector weights onto the given device."""
+def load_brand_classifier(device: torch.device) -> BrandClassifier:
+    """Load the trained brand detector weights onto the given device, or fall back to zero-shot."""
     global _LOADED_CLASSIFIER
     if _LOADED_CLASSIFIER is not None and _LOADED_CLASSIFIER.device == device:
         return _LOADED_CLASSIFIER
@@ -181,6 +232,33 @@ def get_brand_text_features(model: Any, device: torch.device) -> torch.Tensor:
 
     tokenizer = open_clip.get_tokenizer("ViT-B-32")
     brand_prompts: dict[str, list[str]] = {
+        # Luxury Brands
+        "Gucci": [
+            "a photo of a person wearing Gucci luxury designer outfit with signature Gucci styling or double G logo",
+            "Gucci brand designer dress or high-fashion clothing",
+            "model wearing Gucci ready-to-wear runway fashion",
+        ],
+        "Louis Vuitton": [
+            "a photo of a person wearing Louis Vuitton luxury clothing with LV monogram or logo",
+            "Louis Vuitton designer jacket or dress with visible LV emblem",
+            "model wearing Louis Vuitton ready to wear fashion apparel",
+        ],
+        "Prada": [
+            "a photo of a person wearing Prada luxury coat, dress, or outfit with triangle logo",
+            "Prada designer minimalist luxury fashion apparel",
+            "model wearing Prada tailored clothing or ready to wear",
+        ],
+        "Chanel": [
+            "a photo of a person wearing Chanel haute couture tweed suit, jacket, or dress",
+            "Chanel luxury designer fashion clothing with interlocking CC logo",
+            "woman wearing Chanel iconic tweed outfit or evening dress",
+        ],
+        "Dior": [
+            "a photo of a person wearing Christian Dior couture dress or outfit with CD emblem",
+            "Dior luxury designer evening gown or tailored clothing",
+            "model wearing Christian Dior high fashion apparel",
+        ],
+        # Sportswear Brands
         "Nike": [
             "a photo of a person wearing Nike sportswear with the visible Nike swoosh logo",
             "Nike athletic apparel with iconic Nike swoosh",
@@ -206,12 +284,39 @@ def get_brand_text_features(model: Any, device: torch.device) -> torch.Tensor:
             "New Balance shoes with bold N logo",
             "New Balance branded athletic apparel",
         ],
+        # Lifestyle & Heritage Brands
+        "Zara": [
+            "a photo of a person wearing Zara trendy contemporary street clothing or dress",
+            "candid street photo of person wearing Zara stylish outfit",
+            "Zara fast fashion everyday apparel",
+        ],
+        "Levi's": [
+            "a photo of a person wearing Levi's denim jacket or jeans with red tab",
+            "candid person wearing Levi's authentic denim clothing",
+            "Levi's denim apparel and trucker jacket",
+        ],
+        "The North Face": [
+            "a photo of a person wearing The North Face jacket with half dome logo",
+            "The North Face nuptse puffer coat or fleece outerwear",
+            "person wearing The North Face outdoor winter clothing",
+        ],
+        "Calvin Klein": [
+            "a photo of a person wearing Calvin Klein minimalist clothing with CK logo",
+            "model wearing Calvin Klein slip dress or denim apparel",
+            "Calvin Klein casual contemporary clothes",
+        ],
+        "Ralph Lauren": [
+            "a photo of a person wearing Ralph Lauren polo shirt or cable-knit sweater with polo player logo",
+            "Ralph Lauren preppy blazer or formal evening dress",
+            "model wearing Ralph Lauren collection classic clothing",
+        ],
+        # Unbranded / baseline
         "Other / unbranded": [
             "plain unbranded clothing without any commercial brand logo",
-            "traditional cultural attire with no sportswear branding",
+            "traditional cultural attire with no commercial branding",
             "casual everyday clothes with no visible logos",
             "plain formal wear with no commercial logos or emblems",
-            "casual clothing with no visible sportswear logo",
+            "casual clothing with no visible sportswear or designer logo",
         ],
     }
 
