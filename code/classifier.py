@@ -58,7 +58,7 @@ UPLOADED_IMAGE_DIR = ROOT / "classification_images"
 MODEL_NAME = "ViT-B-32"
 PRETRAINED = "laion2b_s34b_b79k"
 PAGE_SIZE = 100#size of the page for train photos
-RESULTS_PAGE_SIZE = 100
+RESULTS_PAGE_SIZE = 50
 CLIP_IMAGE_BATCH_SIZE = 16
 
 # Categories are intentionally about visible clothing. The model is zero-shot,
@@ -129,8 +129,76 @@ ATTRIBUTES: dict[str, list[str]] = {
     "Brands": ALL_BRAND_LABELS,
 }
 
+TOP_GARMENTS = {
+    "t-shirt", "polo shirt", "tank top", "camisole", "crop top", "blouse",
+    "button-down shirt", "tunic", "sweater", "cardigan", "hoodie", "sweatshirt",
+    "vest", "corset top", "bodysuit", "blazer", "suit jacket", "leather jacket",
+    "denim jacket", "coat", "trench coat", "cape", "poncho", "shrug or bolero",
+}
+
+BOTTOM_GARMENTS = {
+    "jeans", "trousers", "dress pants", "leggings", "shorts", "bermuda shorts",
+    "mini skirt", "midi skirt", "maxi skirt", "pencil skirt", "pleated skirt",
+    "wrap skirt", "a-line skirt",
+}
+
+FULL_BODY_GARMENTS = {
+    "a-line dress", "wrap dress", "shirt dress", "shift dress", "sheath dress",
+    "bodycon dress", "fit-and-flare dress", "empire-waist dress", "slip dress",
+    "sundress", "sweater dress", "cocktail dress", "evening gown", "ball gown",
+    "wedding dress", "bridesmaid dress", "maxi dress", "midi dress", "mini dress",
+    "jumpsuit", "romper", "playsuit", "pantsuit", "skirt suit", "saree", "lehenga",
+    "salwar kameez", "kurta", "sherwani", "kaftan", "abaya", "kimono",
+    "traditional robe", "overalls", "uniform", "swimwear",
+}
+
+WARDROBE_PART_COLUMNS = [
+    "Wardrobe Breakdown",
+    "Top (Upper)",
+    "Bottom (Pants)",
+    "Dress / One-Piece",
+]
+
+
+def extract_wardrobe_parts(clothing_types: str) -> dict[str, str]:
+    """Parse clothing classification into distinct part-to-part garment categories."""
+    if not clothing_types or not isinstance(clothing_types, str) or clothing_types.strip().lower() in {"", "nan", "none"}:
+        return {"Top (Upper)": "-", "Bottom (Pants)": "-", "Dress / One-Piece": "-", "Wardrobe Breakdown": "-"}
+    items = [it.strip() for it in clothing_types.split(";") if it.strip()]
+    top_found: list[str] = []
+    bottom_found: list[str] = []
+    dress_found: list[str] = []
+    for item in items:
+        lower = item.lower()
+        if lower in TOP_GARMENTS or any(t in lower for t in ["shirt", "top", "hoodie", "blouse", "sweater", "jacket", "blazer", "coat", "cardigan", "vest"]):
+            top_found.append(item.capitalize())
+        elif lower in BOTTOM_GARMENTS or any(b in lower for b in ["pants", "jeans", "trousers", "shorts", "skirt", "leggings"]):
+            bottom_found.append(item.capitalize())
+        elif lower in FULL_BODY_GARMENTS or any(d in lower for d in ["dress", "gown", "jumpsuit", "romper", "saree", "kurta", "robe", "overalls"]):
+            dress_found.append(item.capitalize())
+        else:
+            top_found.append(item.capitalize())
+    top_str = "; ".join(dict.fromkeys(top_found)) if top_found else "-"
+    bottom_str = "; ".join(dict.fromkeys(bottom_found)) if bottom_found else "-"
+    dress_str = "; ".join(dict.fromkeys(dress_found)) if dress_found else "-"
+    parts = []
+    if dress_found:
+        parts.append("👗 One-Piece: " + dress_found[0])
+    if top_found:
+        parts.append("🧥 Top: " + top_found[0])
+    if bottom_found:
+        parts.append("👖 Bottom: " + bottom_found[0])
+    return {
+        "Top (Upper)": top_str,
+        "Bottom (Pants)": bottom_str,
+        "Dress / One-Piece": dress_str,
+        "Wardrobe Breakdown": " • ".join(parts) if parts else "Separates / Casual",
+    }
+
+
 RESULT_COLUMNS = [
     "Photo", "Classified date", "Photo ID", "Source path", "Person bbox", "People in photo", "Person",
+    *WARDROBE_PART_COLUMNS,
     *ATTRIBUTES.keys(), "Error",
 ]
 
@@ -184,6 +252,11 @@ def load_saved_results() -> pd.DataFrame:
         return pd.DataFrame(columns=RESULT_COLUMNS)
     try:
         saved = pd.read_csv(RESULTS_FILE, dtype=str, keep_default_na=False)
+        if "Wardrobe Breakdown" not in saved.columns or (saved["Wardrobe Breakdown"] == "").all():
+            parts_list = [extract_wardrobe_parts(ct) for ct in saved.get("Clothing types", [])]
+            parts_df = pd.DataFrame(parts_list)
+            for part_col in WARDROBE_PART_COLUMNS:
+                saved[part_col] = parts_df[part_col]
         for column in RESULT_COLUMNS:
             if column not in saved:
                 saved[column] = ""
@@ -417,6 +490,7 @@ def run_classification(
             for person_number, labels in enumerate(crop_labels, start=1):
                 person_label = f"Person {person_number}" if boxes else "No person detected (whole photo)"
                 box_label = ",".join(str(value) for value in boxes[person_number - 1]) if boxes else ""
+                part_info = extract_wardrobe_parts(labels.get("Clothing types", ""))
                 rows.append({
                     "Photo": name,
                     "Classified date": classified_date,
@@ -426,6 +500,7 @@ def run_classification(
                     "People in photo": str(len(boxes)),
                     "Person": person_label,
                     "Error": "",
+                    **part_info,
                     **labels,
                 })
         except (OSError, UnidentifiedImageError, ValueError) as exc:
@@ -659,6 +734,24 @@ def show_photo_preview(name: str, image: Image.Image, people: list[tuple[str, Im
                             f"<span style='width:8px; height:8px; border-radius:50%; background:{brand_color}; box-shadow:0 0 5px {brand_color};'></span>"
                             f"Brand: {brand_val}"
                             f"</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                        # Part-to-part wardrobe breakdown card
+                        parts = extract_wardrobe_parts(labels.get("Clothing types", ""))
+                        st.markdown(
+                            f"""
+                            <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px;">
+                                <div style="font-weight: 700; font-size: 0.82rem; color: #4f46e5; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    🧩 Part-to-Part Wardrobe Breakdown
+                                </div>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap; font-size: 0.85rem;">
+                                    <div><span style="font-weight: 600;">🧥 Top:</span> <span style="background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px;">{parts['Top (Upper)']}</span></div>
+                                    <div><span style="font-weight: 600;">👖 Bottom:</span> <span style="background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px;">{parts['Bottom (Pants)']}</span></div>
+                                    <div><span style="font-weight: 600;">👗 One-Piece:</span> <span style="background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px;">{parts['Dress / One-Piece']}</span></div>
+                                </div>
+                            </div>
+                            """,
                             unsafe_allow_html=True,
                         )
 
@@ -2126,22 +2219,6 @@ with face_tab:
             if not face_occurrences.empty
             else {}
         )
-        face_rows = []
-        for identity in identities:
-            crop_path = ROOT / identity.get("representative_image", "")
-            try:
-                preview = thumbnail_data_uri(str(crop_path), crop_path.stat().st_mtime_ns, 64) if crop_path.is_file() else ""
-            except OSError:
-                preview = ""
-            face_rows.append({
-                "Face preview": preview,
-                "Face ID": identity["face_id"],
-                "Display name": identity.get("display_name", identity["face_id"]),
-                "Review status": identity.get("review_status", "matched"),
-                "Possible match ID": identity.get("possible_match_id", ""),
-                "Photos seen": int(photo_counts.get(identity["face_id"], 0)),
-            })
-
         name_by_id = {
             identity["face_id"]: identity.get("display_name", identity["face_id"])
             for identity in identities
@@ -2194,14 +2271,24 @@ with face_tab:
                 if i.get("review_status") == "matched"
             ]
 
-        # Interactive Cards Grid View
+        # Interactive Cards Grid View with Pagination
         if face_view_mode == ":material/grid_view: Cards":
             if not filtered_identities:
                 st.info("No matching faces found for the current search/filter.")
             else:
-                st.caption(f"Showing **{len(filtered_identities)}** profile card(s). Click **View Profile** on any face to inspect all photo sightings and details:")
+                FACE_CARD_PAGE_SIZE = 24
+                card_page_count = max(1, ceil(len(filtered_identities) / FACE_CARD_PAGE_SIZE))
+                c_head_col, c_page_col = st.columns([3, 1], vertical_alignment="center")
+                with c_head_col:
+                    st.caption(f"Showing **{len(filtered_identities):,}** profile card(s) • {FACE_CARD_PAGE_SIZE} per page")
+                with c_page_col:
+                    card_page = st.number_input("Face Page", min_value=1, max_value=card_page_count, value=1, step=1, key="face_card_page")
+
+                c_start = (int(card_page) - 1) * FACE_CARD_PAGE_SIZE
+                visible_card_identities = filtered_identities[c_start : c_start + FACE_CARD_PAGE_SIZE]
+
                 card_cols = st.columns(4)
-                for idx, identity in enumerate(filtered_identities):
+                for idx, identity in enumerate(visible_card_identities):
                     f_id = identity["face_id"]
                     disp_name = identity.get("display_name", f_id)
                     num_photos = int(photo_counts.get(f_id, 0))
@@ -2230,27 +2317,52 @@ with face_tab:
                             if st.button("👤 View Profile", key=f"btn_face_card_{f_id}", type="primary", width="stretch"):
                                 show_face_profile_dialog(f_id)
 
-        # Table & Bulk Rename View
+        # Table & Bulk Rename View with Pagination
         else:
+            FACE_TABLE_PAGE_SIZE = 50
+            table_page_count = max(1, ceil(len(filtered_identities) / FACE_TABLE_PAGE_SIZE))
+            t_head_col, t_page_col = st.columns([3, 1], vertical_alignment="center")
+            with t_head_col:
+                st.caption(f"Showing **{len(filtered_identities):,}** table record(s) • {FACE_TABLE_PAGE_SIZE} per page")
+            with t_page_col:
+                table_page = st.number_input("Table Page", min_value=1, max_value=table_page_count, value=1, step=1, key="face_table_page")
+
+            t_start = (int(table_page) - 1) * FACE_TABLE_PAGE_SIZE
+            visible_table_identities = filtered_identities[t_start : t_start + FACE_TABLE_PAGE_SIZE]
+
             with st.container(border=True):
                 t_col1, t_col2 = st.columns([3, 1], vertical_alignment="center")
                 with t_col1:
+                    vis_names = {i["face_id"]: i.get("display_name", i["face_id"]) for i in visible_table_identities}
                     table_selected_id = st.selectbox(
                         "Open profile dialog for selected person:",
-                        options=list(name_by_id.keys()),
-                        format_func=lambda fid: f"{name_by_id[fid]} ({fid})",
+                        options=list(vis_names.keys()),
+                        format_func=lambda fid: f"{vis_names[fid]} ({fid})",
                         key="table_inspect_face_select",
                     )
                 with t_col2:
                     if st.button("🔍 Open Face Profile", type="primary", width="stretch", key="btn_table_open_dialog"):
                         show_face_profile_dialog(table_selected_id)
 
-            filtered_face_ids = {i["face_id"] for i in filtered_identities}
-            filtered_face_rows = [r for r in face_rows if r["Face ID"] in filtered_face_ids]
+            face_rows = []
+            for identity in visible_table_identities:
+                crop_path = ROOT / identity.get("representative_image", "")
+                try:
+                    preview = thumbnail_data_uri(str(crop_path), crop_path.stat().st_mtime_ns, 64) if crop_path.is_file() else ""
+                except OSError:
+                    preview = ""
+                face_rows.append({
+                    "Face preview": preview,
+                    "Face ID": identity["face_id"],
+                    "Display name": identity.get("display_name", identity["face_id"]),
+                    "Review status": identity.get("review_status", "matched"),
+                    "Possible match ID": identity.get("possible_match_id", ""),
+                    "Photos seen": int(photo_counts.get(identity["face_id"], 0)),
+                })
 
             with st.form("face-library-name-form"):
                 edited_faces = st.data_editor(
-                    pd.DataFrame(filtered_face_rows),
+                    pd.DataFrame(face_rows),
                     width="stretch",
                     hide_index=True,
                     disabled=["Face preview", "Face ID", "Review status", "Possible match ID", "Photos seen"],
@@ -2286,6 +2398,14 @@ with results_tab:
                 key="results_brand_pill",
             )
 
+            part_options = ["All Outfits", "🧥 Tops Only", "👖 Bottoms / Pants Only", "👗 One-Piece / Dresses Only"]
+            selected_part_pill = st.pills(
+                "Garment Part Filter",
+                part_options,
+                default="All Outfits",
+                key="results_part_pill",
+            )
+
             search_col, page_col = st.columns([3, 1])
             with search_col:
                 search_query = st.text_input(
@@ -2301,9 +2421,19 @@ with results_tab:
                 if brand_col:
                     filtered_results = filtered_results[filtered_results[brand_col].astype(str).str.lower() == selected_brand_pill.lower()]
 
+            if selected_part_pill == "🧥 Tops Only":
+                if "Top (Upper)" in filtered_results.columns:
+                    filtered_results = filtered_results[filtered_results["Top (Upper)"].ne("-") & filtered_results["Top (Upper)"].ne("")]
+            elif selected_part_pill == "👖 Bottoms / Pants Only":
+                if "Bottom (Pants)" in filtered_results.columns:
+                    filtered_results = filtered_results[filtered_results["Bottom (Pants)"].ne("-") & filtered_results["Bottom (Pants)"].ne("")]
+            elif selected_part_pill == "👗 One-Piece / Dresses Only":
+                if "Dress / One-Piece" in filtered_results.columns:
+                    filtered_results = filtered_results[filtered_results["Dress / One-Piece"].ne("-") & filtered_results["Dress / One-Piece"].ne("")]
+
             if search_query:
                 mask = pd.Series(False, index=filtered_results.index)
-                search_cols = ["Photo", "Person", *ATTRIBUTES.keys(), "Brand", "Brands"]
+                search_cols = ["Photo", "Person", *WARDROBE_PART_COLUMNS, *ATTRIBUTES.keys(), "Brand", "Brands"]
                 for col in search_cols:
                     if col in filtered_results.columns:
                         mask |= filtered_results[col].astype(str).str.contains(search_query, case=False, na=False)
@@ -2312,6 +2442,8 @@ with results_tab:
             active_filters = []
             if selected_brand_pill and selected_brand_pill != "All":
                 active_filters.append(f"Brand: **{selected_brand_pill}**")
+            if selected_part_pill and selected_part_pill != "All Outfits":
+                active_filters.append(f"Part: **{selected_part_pill}**")
             if search_query:
                 active_filters.append(f"Search: `\"{search_query}\"`")
             filter_summary = " + ".join(active_filters) if active_filters else "All records"
@@ -2332,27 +2464,32 @@ with results_tab:
             results_start = (int(results_page) - 1) * RESULTS_PAGE_SIZE
             visible_results = filtered_results.iloc[results_start : results_start + RESULTS_PAGE_SIZE].copy().reset_index(drop=True)
             thumbnails = []
-            for source_path in visible_results["Source path"]:
+            for source_path in visible_results.get("Source path", []):
                 try:
                     image_path = Path(str(source_path))
                     thumbnails.append(
-                        thumbnail_data_uri(str(image_path), image_path.stat().st_mtime_ns, 20)
+                        thumbnail_data_uri(str(image_path), image_path.stat().st_mtime_ns, 28)
                         if image_path.is_file()
                         else ""
                     )
                 except OSError:
                     thumbnails.append("")
+            visible_results.insert(0, "Preview", thumbnails)
+            visible_results.insert(1, "Open preview", "Inspect")
             if not visible_results.empty:
                 quick_prev_col1, quick_prev_col2 = st.columns([3, 1])
                 with quick_prev_col1:
-                    inspect_options = list(range(len(visible_results)))
-                    selected_inspect_idx = st.selectbox(
+                    inspect_options = [
+                        f"#{i+1}: {visible_results.iloc[i]['Photo']} • {visible_results.iloc[i].get('Wardrobe Breakdown', '')} • {visible_results.iloc[i].get('Brands', 'Unbranded')}"
+                        for i in range(len(visible_results))
+                    ]
+                    selected_inspect_label = st.selectbox(
                         "Quick Photo Inspector",
                         options=inspect_options,
-                        format_func=lambda i: f"#{i+1}: {visible_results.iloc[i]['Photo']} • {visible_results.iloc[i].get('Brands', 'Unbranded')}",
-                        key="quick_inspect_record_select",
+                        index=0 if inspect_options else None,
                         label_visibility="collapsed",
                     )
+                    selected_inspect_idx = inspect_options.index(selected_inspect_label) if (selected_inspect_label and selected_inspect_label in inspect_options) else None
                 with quick_prev_col2:
                     open_inspected = st.button("🔍 Open Detailed Preview", type="secondary", icon=":material/visibility:")
             else:
@@ -2379,6 +2516,14 @@ with results_tab:
                         key="photo_click",
                         type="tertiary",
                     ),
+                    "Wardrobe Breakdown": st.column_config.TextColumn(
+                        "Wardrobe Breakdown (Part-to-Part)",
+                        help="Decomposed outfit: Top, Bottom / Pants, and One-Piece / Dress",
+                        width="large",
+                    ),
+                    "Top (Upper)": st.column_config.TextColumn("Top / Upperwear", width="medium"),
+                    "Bottom (Pants)": st.column_config.TextColumn("Bottom / Pants & Skirts", width="medium"),
+                    "Dress / One-Piece": st.column_config.TextColumn("One-Piece / Dress", width="medium"),
                     "Photo ID": None,
                     "Source path": None,
                     "Person bbox": None,
