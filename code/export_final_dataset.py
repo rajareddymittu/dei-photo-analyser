@@ -8,11 +8,15 @@ Generates:
 5. Symlink `final data set` pointing to `final_data_set`.
 """
 
-import shutil
+import sys
 from pathlib import Path
+import shutil
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "code"))
+from analytics_assistant.brands import TARGET_BRANDS
+
 CSV_PATH = ROOT / "classification_results.csv"
 OUTPUT_DIR = ROOT / "final_data_set"
 SYMLINK_PATH = ROOT / "final data set"
@@ -28,12 +32,8 @@ def export_branded_dataset() -> None:
         print("Error: No data or Brands column found in classification results.")
         return
 
-    # Filter out unbranded and empty entries
-    branded = df[
-        ~df["Brands"].str.contains("unbranded|other", case=False, na=False)
-        & df["Brands"].notna()
-        & df["Brands"].ne("")
-    ].copy()
+    # Filter strictly for currently configured target brands
+    branded = df[df["Brands"].isin(TARGET_BRANDS)].copy()
 
     total_sightings = len(branded)
     unique_photos = branded["Photo"].nunique()

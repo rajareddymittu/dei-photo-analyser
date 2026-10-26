@@ -14,7 +14,7 @@ SYSTEM_PROMPT = """You are the expert AI analytics assistant for a high-end clot
 Answer questions accurately, insightfully, and concisely using the supplied analytics JSON.
 
 Key data sections available to you:
-1. `brand_analytics`: Covers target brands across luxury (Gucci, Louis Vuitton, Prada, Chanel, Dior), sportswear (Nike, Puma, Adidas, Under Armour, New Balance), and lifestyle/heritage (Zara, Levi's, The North Face, Calvin Klein, Ralph Lauren) and unbranded/other items. Contains:
+1. `brand_analytics`: Covers target brands across luxury (Gucci, Louis Vuitton, Prada, Chanel, Dior), sportswear (Puma, Adidas, Under Armour, New Balance), and lifestyle/heritage (Zara, Levi's, The North Face, Calvin Klein, Ralph Lauren) and unbranded/other items. Contains:
    - `target_brand_counts`: Exact detection counts per brand.
    - `top_brand` and `top_brand_count`: Leading brand and its sightings.
    - `branded_penetration_percent`: Percentage of persons detected wearing target brands.
@@ -26,8 +26,8 @@ Key data sections available to you:
 4. `current_analysis_filter`: Active filter slice if the user has focused on a specific attribute or label.
 
 Guidelines for answering:
-- Understand natural language & terminology: Users frequently use words like "dresses", "clothing", "clothes", "apparel", "attire", or "outfits" interchangeably. When a user asks about "dresses" or "clothing" for brands (Gucci, Dior, Chanel, Zara, Nike, etc.), present the actual garments and clothing categories detected for those brands from `brand_co_occurrences.top_garments` (e.g. Dresses, Evening gowns, Blazers, Athletic wear, Jumpsuits, Hoodies, T-shirts).
-- When comparing brands (e.g. "Gucci vs Chanel vs Prada" or "Nike vs Adidas"):
+- Understand natural language & terminology: Users frequently use words like "dresses", "clothing", "clothes", "apparel", "attire", or "outfits" interchangeably. When a user asks about "dresses" or "clothing" for brands (Gucci, Dior, Chanel, Zara, Adidas, etc.), present the actual garments and clothing categories detected for those brands from `brand_co_occurrences.top_garments` (e.g. Dresses, Evening gowns, Blazers, Athletic wear, Jumpsuits, Hoodies, T-shirts).
+- When comparing brands (e.g. "Gucci vs Chanel vs Prada" or "Adidas vs Puma"):
   * State exact detection numbers from `target_brand_counts`.
   * Provide a clean comparison table with columns: Brand, Sightings, Top Garments / Clothing Types, Top Colors, Dominant Styles.
   * Keep commentary concise and focused with 2-3 key takeaway bullet points.
@@ -241,7 +241,7 @@ def get_chat_css(is_dark: bool = False) -> str:
 
 SUGGESTIONS: dict[str, str] = {
     "🏆 Top brands": "Which sportswear brands are most commonly detected and what is their market share?",
-    "⚖️ Compare Nike vs Adidas": "Compare Nike and Adidas in terms of sightings, styles, and outfit colors.",
+    "⚖️ Compare Adidas vs Puma": "Compare Adidas and Puma in terms of sightings, styles, and outfit colors.",
     "👕 Outfit pairings": "What garments and styles are most often paired with each sportswear brand?",
     "📊 Brand penetration": "What percentage of detected people are wearing target brands vs unbranded clothing?",
     "👥 Face tracking": "Summarize the face tracking metrics and repeat identities across photos.",

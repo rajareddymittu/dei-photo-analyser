@@ -1553,7 +1553,7 @@ st.markdown(
         <div>
             <div class="hero-chip"><span class="hero-dot"></span> Active Zero-Shot CV Engine</div>
             <h1 class="hero-banner-title">👔 Wardrobe & Brand Intelligence</h1>
-            <p class="hero-banner-desc">Zero-shot clothing classification, luxury & sportswear brand recognition (Gucci, Louis Vuitton, Prada, Chanel, Dior, Nike, Adidas, Zara, etc.), and AI analytics.</p>
+            <p class="hero-banner-desc">Zero-shot clothing classification, luxury & sportswear brand recognition (Gucci, Louis Vuitton, Prada, Chanel, Dior, Adidas, Puma, Zara, etc.), and AI analytics.</p>
         </div>
         <div class="hero-stat-badge">
             <div class="hero-stat-num">{saved_count:,}</div>
@@ -1569,7 +1569,7 @@ with st.sidebar:
     st.toggle("🌙 Dark Mode", value=is_dark, key="is_dark_mode")
     st.divider()
 
-    st.markdown("### :material/loyalty: Target Brands (15)")
+    st.markdown(f"### :material/loyalty: Target Brands ({len(TARGET_BRANDS)})")
     st.caption("Active zero-shot & probe recognition across 3 tiers:")
 
     brand_groups = [
@@ -1603,7 +1603,7 @@ with st.sidebar:
         max_value=0.85,
         value=0.55,
         step=0.05,
-        help="Confidence threshold for confirming brand identity (Gucci, Chanel, Nike, Adidas, etc.). 0.55+ ensures unbranded clothing is not misclassified.",
+        help="Confidence threshold for confirming brand identity (Gucci, Chanel, Adidas, Puma, etc.). 0.55+ ensures unbranded clothing is not misclassified.",
     )
     st.metric("Database records", f"{saved_count:,}", border=True)
     if st.button(
@@ -2155,7 +2155,7 @@ with ai_analytics_tab:
     with st.expander("Explore sample questions & assistant capabilities", icon=":material/help:"):
         st.markdown(
             """
-            - **Brand Intelligence:** "Which brand leads in sightings?", "Compare Nike and Adidas in our photos", "What garments are most often paired with Puma?"
+            - **Brand Intelligence:** "Which brand leads in sightings?", "Compare Adidas and Puma in our photos", "What garments are most often paired with Puma?"
             - **Wardrobe Demographics:** "What are the most popular colors?", "What styles and patterns appear most frequently?"
             - **Face Demographics:** "How many distinct people were identified?", "Are there repeat individuals across multiple photos?"
             - **Penetration:** "What percentage of detected outfits have recognizable sportswear logos vs unbranded attire?"

@@ -21,7 +21,6 @@ LUXURY_BRANDS: list[str] = [
 ]
 
 SPORTSWEAR_BRANDS: list[str] = [
-    "Nike",
     "Puma",
     "Adidas",
     "Under Armour",
@@ -55,7 +54,6 @@ BRAND_COLORS: dict[str, str] = {
     "Chanel": "#EC4899",         # Parisian Pink
     "Dior": "#6366F1",           # Dior Blue / Violet
     # Sportswear
-    "Nike": "#E74C3C",           # Crimson Red
     "Puma": "#E67E22",           # Amber Orange
     "Adidas": "#2980B9",         # Athletic Cyan / Blue
     "Under Armour": "#8E44AD",   # Royal Violet Purple
@@ -259,11 +257,6 @@ def get_brand_text_features(model: Any, device: torch.device) -> torch.Tensor:
             "model wearing Christian Dior high fashion apparel",
         ],
         # Sportswear Brands
-        "Nike": [
-            "a photo of a person wearing Nike sportswear with the visible Nike swoosh logo",
-            "Nike athletic apparel with iconic Nike swoosh",
-            "Nike sneakers with the Nike swoosh logo",
-        ],
         "Puma": [
             "a photo of a person wearing Puma athletic apparel with the leaping puma cat logo",
             "Puma brand sportswear with leaping puma logo or Puma text",
