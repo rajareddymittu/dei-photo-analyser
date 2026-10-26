@@ -1837,7 +1837,8 @@ with analysis_tab:
         with st.container(horizontal=True):
             st.metric("Photos analyzed", f"{photo_count:,}", delta="100% Ingested", delta_color="normal", border=True)
             st.metric("Person detections", f"{person_rows:,}", delta=f"{average_people:.1f} avg / photo", delta_color="normal", border=True)
-            st.metric("Branded outfit rate", f"{brand_stats['branded_penetration_percent']:.1f}%", delta=f"{brand_stats.get('total_branded_sightings', 0):,} logo hits", delta_color="normal", help="Percentage of detected people with a target sportswear logo", border=True)
+            total_brand_hits = brand_stats.get("total_branded_sightings", brand_stats.get("total_target_brand_sightings", 0))
+            st.metric("Branded outfit rate", f"{brand_stats['branded_penetration_percent']:.1f}%", delta=f"{total_brand_hits:,} logo hits", delta_color="normal", help="Percentage of detected people with a recognized brand logo", border=True)
             st.metric("Leading brand", top_b_label, delta=top_b_delta, delta_color="normal", border=True)
 
         filter_options = ["All results", *attribute_columns]
