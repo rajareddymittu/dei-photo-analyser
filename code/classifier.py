@@ -53,6 +53,7 @@ st.set_page_config(
 
 ROOT = Path(__file__).resolve().parent.parent
 TRAIN_DIR = ROOT / "train"
+SAMPLE_DIR = TRAIN_DIR if TRAIN_DIR.is_dir() else (ROOT / "datasetdownload" / "master_folder")
 RESULTS_FILE = ROOT / "classification_results.csv"
 UPLOADED_IMAGE_DIR = ROOT / "classification_images"
 MODEL_NAME = "ViT-B-32"
@@ -1715,10 +1716,10 @@ with uploaded_tab:
             classify_uploads = False
             force_uploads = False
 
-    if TRAIN_DIR.is_dir():
+    if SAMPLE_DIR.is_dir():
         with st.expander("✨ Need an image? Try a sample photo from the gallery", expanded=not bool(uploads)):
             st.caption("Select a sample image from the dataset to test person detection, brand classification, and face recognition immediately:")
-            sample_candidates = sorted(list(TRAIN_DIR.glob("*.jpg")))[:4]
+            sample_candidates = sorted(list(SAMPLE_DIR.glob("*.jpg")))[:4]
             if sample_candidates:
                 sample_cols = st.columns(len(sample_candidates))
                 for idx, sample_path in enumerate(sample_candidates):
@@ -2282,16 +2283,31 @@ with face_tab:
             if not filtered_identities:
                 st.info("No matching faces found for the current search/filter.")
             else:
-                FACE_CARD_PAGE_SIZE = 24
-                card_page_count = max(1, ceil(len(filtered_identities) / FACE_CARD_PAGE_SIZE))
-                c_head_col, c_page_col = st.columns([3, 1], vertical_alignment="center")
-                with c_head_col:
-                    st.caption(f"Showing **{len(filtered_identities):,}** profile card(s) • {FACE_CARD_PAGE_SIZE} per page")
-                with c_page_col:
-                    card_page = st.number_input("Face Page", min_value=1, max_value=card_page_count, value=1, step=1, key="face_card_page")
+                c_head_col, c_size_col, c_page_col = st.columns([2.5, 1, 1], vertical_alignment="bottom")
+                with c_size_col:
+                    face_card_page_size = st.selectbox(
+                        "Cards / page",
+                        options=[8, 16, 24, 32, 48, 64, 96],
+                        index=2,
+                        key="face_card_page_size",
+                    )
+                card_page_count = max(1, ceil(len(filtered_identities) / face_card_page_size))
+                if "face_card_page" not in st.session_state or st.session_state["face_card_page"] > card_page_count or st.session_state["face_card_page"] < 1:
+                    st.session_state["face_card_page"] = 1
 
-                c_start = (int(card_page) - 1) * FACE_CARD_PAGE_SIZE
-                visible_card_identities = filtered_identities[c_start : c_start + FACE_CARD_PAGE_SIZE]
+                with c_head_col:
+                    st.caption(f"Showing **{len(filtered_identities):,}** profile card(s) • Page {st.session_state.get('face_card_page', 1)} of {card_page_count}")
+                with c_page_col:
+                    card_page = st.number_input(
+                        "Page",
+                        min_value=1,
+                        max_value=card_page_count,
+                        step=1,
+                        key="face_card_page",
+                    )
+
+                c_start = (int(card_page) - 1) * face_card_page_size
+                visible_card_identities = filtered_identities[c_start : c_start + face_card_page_size]
 
                 card_cols = st.columns(4)
                 for idx, identity in enumerate(visible_card_identities):
@@ -2325,16 +2341,31 @@ with face_tab:
 
         # Table & Bulk Rename View with Pagination
         else:
-            FACE_TABLE_PAGE_SIZE = 50
-            table_page_count = max(1, ceil(len(filtered_identities) / FACE_TABLE_PAGE_SIZE))
-            t_head_col, t_page_col = st.columns([3, 1], vertical_alignment="center")
-            with t_head_col:
-                st.caption(f"Showing **{len(filtered_identities):,}** table record(s) • {FACE_TABLE_PAGE_SIZE} per page")
-            with t_page_col:
-                table_page = st.number_input("Table Page", min_value=1, max_value=table_page_count, value=1, step=1, key="face_table_page")
+            t_head_col, t_size_col, t_page_col = st.columns([2.5, 1, 1], vertical_alignment="bottom")
+            with t_size_col:
+                face_table_page_size = st.selectbox(
+                    "Rows / page",
+                    options=[25, 50, 100, 200],
+                    index=1,
+                    key="face_table_page_size",
+                )
+            table_page_count = max(1, ceil(len(filtered_identities) / face_table_page_size))
+            if "face_table_page" not in st.session_state or st.session_state["face_table_page"] > table_page_count or st.session_state["face_table_page"] < 1:
+                st.session_state["face_table_page"] = 1
 
-            t_start = (int(table_page) - 1) * FACE_TABLE_PAGE_SIZE
-            visible_table_identities = filtered_identities[t_start : t_start + FACE_TABLE_PAGE_SIZE]
+            with t_head_col:
+                st.caption(f"Showing **{len(filtered_identities):,}** table record(s) • Page {st.session_state.get('face_table_page', 1)} of {table_page_count}")
+            with t_page_col:
+                table_page = st.number_input(
+                    "Table Page",
+                    min_value=1,
+                    max_value=table_page_count,
+                    step=1,
+                    key="face_table_page",
+                )
+
+            t_start = (int(table_page) - 1) * face_table_page_size
+            visible_table_identities = filtered_identities[t_start : t_start + face_table_page_size]
 
             with st.container(border=True):
                 t_col1, t_col2 = st.columns([3, 1], vertical_alignment="center")
@@ -2412,13 +2443,19 @@ with results_tab:
                 key="results_part_pill",
             )
 
-            search_col, page_col = st.columns([3, 1])
+            search_col, size_col, page_col = st.columns([2.6, 1, 1], vertical_alignment="bottom")
             with search_col:
                 search_query = st.text_input(
                     "Search records",
                     placeholder="🔍 Filter records by brand, garment, color, or photo name...",
                     key="results_quick_search",
-                    label_visibility="collapsed",
+                )
+            with size_col:
+                results_page_size = st.selectbox(
+                    "Rows / page",
+                    options=[25, 50, 100, 200],
+                    index=1,
+                    key="results_page_size",
                 )
 
             filtered_results = results
@@ -2455,20 +2492,19 @@ with results_tab:
             filter_summary = " + ".join(active_filters) if active_filters else "All records"
             st.caption(f"Showing **{len(filtered_results):,}** record(s) matching ({filter_summary}) • Click **Open preview** or photo name to inspect details.")
 
-            results_page_count = max(1, ceil(len(filtered_results) / RESULTS_PAGE_SIZE))
-            if st.session_state.get("results-page", 1) > results_page_count:
+            results_page_count = max(1, ceil(len(filtered_results) / results_page_size))
+            if "results-page" not in st.session_state or st.session_state["results-page"] > results_page_count or st.session_state["results-page"] < 1:
                 st.session_state["results-page"] = 1
             with page_col:
                 results_page = st.number_input(
                     "Page",
                     min_value=1,
                     max_value=results_page_count,
-                    value=1,
                     step=1,
                     key="results-page",
                 )
-            results_start = (int(results_page) - 1) * RESULTS_PAGE_SIZE
-            visible_results = filtered_results.iloc[results_start : results_start + RESULTS_PAGE_SIZE].copy().reset_index(drop=True)
+            results_start = (int(results_page) - 1) * results_page_size
+            visible_results = filtered_results.iloc[results_start : results_start + results_page_size].copy().reset_index(drop=True)
             thumbnails = []
             for source_path in visible_results.get("Source path", []):
                 try:
